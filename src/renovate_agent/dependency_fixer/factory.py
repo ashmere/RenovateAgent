@@ -106,7 +106,7 @@ class DependencyFixerFactory:
                 repository=repo.full_name,
                 error=str(e),
             )
-            raise DependencyFixingError(f"Failed to get dependency fixer: {e}")
+            raise DependencyFixingError(f"Failed to get dependency fixer: {e}") from e
 
     async def _analyze_repository(self, repo: Repository) -> Dict[str, Any]:
         """

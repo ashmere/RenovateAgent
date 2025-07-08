@@ -118,7 +118,9 @@ class IssueStateManager:
                 repo=repo.full_name,
                 error=str(e),
             )
-            raise IssueStateError(f"Failed to get or create dashboard issue: {e}")
+            raise IssueStateError(
+                f"Failed to get or create dashboard issue: {e}"
+            ) from e
 
     async def update_dashboard_issue(
         self, repo: Repository, pr_data: Optional[Dict[str, Any]] = None
@@ -160,7 +162,7 @@ class IssueStateManager:
             logger.error(
                 "Failed to update dashboard issue", repo=repo.full_name, error=str(e)
             )
-            raise IssueStateError(f"Failed to update dashboard issue: {e}")
+            raise IssueStateError(f"Failed to update dashboard issue: {e}") from e
 
     async def _create_initial_dashboard_data(self, repo: Repository) -> Dict[str, Any]:
         """
@@ -437,7 +439,7 @@ class IssueStateManager:
         try:
             updated_dt = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
             updated_str = updated_dt.strftime("%Y-%m-%d %H:%M UTC")
-        except:
+        except ValueError:
             updated_str = last_updated
 
         report = f"""# 🤖 Renovate PRs Assistant Dashboard

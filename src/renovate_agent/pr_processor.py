@@ -114,7 +114,7 @@ class PRProcessor:
                 f"Failed to process PR event: {e}",
                 pr_number=pr_number,
                 repo_name=repo_name,
-            )
+            ) from e
 
     async def process_check_suite_completion(
         self,
@@ -189,7 +189,7 @@ class PRProcessor:
                 f"Failed to process check suite completion: {e}",
                 pr_number=pr_number,
                 repo_name=repo_name,
-            )
+            ) from e
 
     async def _process_pr_for_approval(
         self, repo: Repository, pr: PullRequest
@@ -424,34 +424,36 @@ class PRProcessor:
             # First clone the repository to a temporary directory
             # Note: This is a simplified approach - a full implementation would
             # need to handle repository cloning and cleanup
+            import tempfile
             from pathlib import Path
 
-            temp_repo_path = Path(f"/tmp/repo_{repo.name}")
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_repo_path = Path(temp_dir) / f"repo_{repo.name}"
 
-            fix_result = await fixer.fix_dependencies(
-                repo_path=temp_repo_path, branch=pr.head.ref
-            )
-
-            if fix_result["success"]:
-                logger.info(
-                    "Dependencies fixed successfully",
-                    pr_number=pr.number,
-                    repository=repo.full_name,
-                    fixer=fixer.__class__.__name__,
+                fix_result = await fixer.fix_dependencies(
+                    repo_path=temp_repo_path, branch=pr.head.ref
                 )
 
-                return {
-                    "success": True,
-                    "fixer": fixer.__class__.__name__,
-                    "changes": fix_result.get("changes", []),
-                    "commit_sha": fix_result.get("commit_sha"),
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": fix_result.get("error", "Unknown error"),
-                    "fixer": fixer.__class__.__name__,
-                }
+                if fix_result["success"]:
+                    logger.info(
+                        "Dependencies fixed successfully",
+                        pr_number=pr.number,
+                        repository=repo.full_name,
+                        fixer=fixer.__class__.__name__,
+                    )
+
+                    return {
+                        "success": True,
+                        "fixer": fixer.__class__.__name__,
+                        "changes": fix_result.get("changes", []),
+                        "commit_sha": fix_result.get("commit_sha"),
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": fix_result.get("error", "Unknown error"),
+                        "fixer": fixer.__class__.__name__,
+                    }
 
         except Exception as e:
             logger.error(
@@ -504,4 +506,4 @@ class PRProcessor:
                 f"Failed to get PR status: {e}",
                 pr_number=pr_number,
                 repo_name=repo_name,
-            )
+            ) from e

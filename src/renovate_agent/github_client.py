@@ -96,7 +96,7 @@ class GitHubClient:
 
         except Exception as e:
             logger.error("GitHub authentication failed", error=str(e))
-            raise AuthenticationError(f"Failed to authenticate with GitHub: {e}")
+            raise AuthenticationError(f"Failed to authenticate with GitHub: {e}") from e
 
     def _create_jwt_token(self, private_key: str) -> str:
         """Create JWT token for GitHub App authentication."""
@@ -230,7 +230,7 @@ class GitHubClient:
             return repo
         except GithubException as e:
             logger.error("Failed to get repository", repo=full_name, error=str(e))
-            raise GitHubAPIError(f"Failed to get repository {full_name}: {e}")
+            raise GitHubAPIError(f"Failed to get repository {full_name}: {e}") from e
 
     async def get_pr(self, repo: Repository, pr_number: int) -> PullRequest:
         """
@@ -256,7 +256,7 @@ class GitHubClient:
                 pr_number=pr_number,
                 error=str(e),
             )
-            raise GitHubAPIError(f"Failed to get PR {pr_number}: {e}")
+            raise GitHubAPIError(f"Failed to get PR {pr_number}: {e}") from e
 
     async def get_pr_checks(self, repo: Repository, pr: PullRequest) -> List[CheckRun]:
         """
@@ -296,7 +296,7 @@ class GitHubClient:
                 pr_number=pr.number,
                 error=str(e),
             )
-            raise GitHubAPIError(f"Failed to get PR checks: {e}")
+            raise GitHubAPIError(f"Failed to get PR checks: {e}") from e
 
     async def approve_pr(
         self,
@@ -335,7 +335,7 @@ class GitHubClient:
                 pr_number=pr_number,
                 error=str(e),
             )
-            raise GitHubAPIError(f"Failed to approve PR {pr_number}: {e}")
+            raise GitHubAPIError(f"Failed to approve PR {pr_number}: {e}") from e
 
     async def create_issue(
         self,
@@ -373,7 +373,7 @@ class GitHubClient:
             logger.error(
                 "Failed to create issue", repo=repo.full_name, title=title, error=str(e)
             )
-            raise GitHubAPIError(f"Failed to create issue: {e}")
+            raise GitHubAPIError(f"Failed to create issue: {e}") from e
 
     async def update_issue(
         self,
@@ -422,7 +422,7 @@ class GitHubClient:
                 issue_number=issue_number,
                 error=str(e),
             )
-            raise GitHubAPIError(f"Failed to update issue {issue_number}: {e}")
+            raise GitHubAPIError(f"Failed to update issue {issue_number}: {e}") from e
 
     async def find_issue_by_title(
         self, repo: Repository, title: str
@@ -461,7 +461,7 @@ class GitHubClient:
                 title=title,
                 error=str(e),
             )
-            raise GitHubAPIError(f"Failed to search for issue: {e}")
+            raise GitHubAPIError(f"Failed to search for issue: {e}") from e
 
     async def commit_file(
         self,
@@ -530,7 +530,7 @@ class GitHubClient:
                 branch=branch,
                 error=str(e),
             )
-            raise GitHubAPIError(f"Failed to commit file {file_path}: {e}")
+            raise GitHubAPIError(f"Failed to commit file {file_path}: {e}") from e
 
     async def is_renovate_pr(self, pr: PullRequest) -> bool:
         """
@@ -632,7 +632,9 @@ class GitHubClient:
             logger.error(
                 "Failed to get organization repositories", org=org_name, error=str(e)
             )
-            raise GitHubAPIError(f"Failed to get repositories for {org_name}: {e}")
+            raise GitHubAPIError(
+                f"Failed to get repositories for {org_name}: {e}"
+            ) from e
 
     def should_process_repository(self, repo: Repository) -> bool:
         """
