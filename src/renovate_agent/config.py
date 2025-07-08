@@ -324,7 +324,7 @@ def get_settings() -> Settings:
     global _settings_instance
     if _settings_instance is None:
         try:
-            _settings_instance = Settings()
+            _settings_instance = Settings()  # type: ignore[call-arg,unused-ignore]
         except ValueError as e:
             # If github_organization is not provided, raise a more helpful error
             if "github_organization" in str(e):
