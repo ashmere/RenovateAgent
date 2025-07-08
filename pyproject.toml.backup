@@ -1,10 +1,16 @@
-[tool.poetry]
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
 name = "renovate-agent"
-version = "0.1.0"
 description = "AI-powered automation for Renovate dependency update PRs"
-authors = ["Mat Davies <ashmere@gmail.com>"]
 readme = "README.md"
-license = "MIT"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Renovate PR Assistant", email = "support@example.com"},
+]
 keywords = ["renovate", "github", "automation", "dependencies", "ai"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -20,50 +26,64 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Version Control :: Git",
 ]
-packages = [{include = "renovate_agent", from = "src"}]
+dynamic = ["version"]
 
-[tool.poetry.dependencies]
-python = "^3.8"
-fastapi = "^0.104.0"
-uvicorn = {extras = ["standard"], version = "^0.24.0"}
-pydantic = "^2.5.0"
-pydantic-settings = "^2.1.0"
-PyGithub = "^1.59.0"
-httpx = "^0.25.0"
-structlog = "^23.2.0"
-python-dotenv = "^1.0.0"
-cryptography = "^41.0.0"
-PyJWT = "^2.8.0"
-sqlalchemy = "^2.0.0"
-alembic = "^1.13.0"
-aiofiles = "^23.2.0"
-python-json-logger = "^2.0.0"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "PyGithub>=1.59.0",
+    "httpx>=0.25.0",
+    "structlog>=23.2.0",
+    "python-dotenv>=1.0.0",
+    "cryptography>=41.0.0",
+    "PyJWT>=2.8.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "aiofiles>=23.2.0",
+    "python-json-logger>=2.0.0",
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.4.0"
-pytest-asyncio = "^0.21.0"
-pytest-cov = "^4.1.0"
-pytest-mock = "^3.12.0"
-black = "^23.11.0"
-ruff = "^0.1.6"
-mypy = "^1.7.0"
-pre-commit = "^3.5.0"
-bandit = "^1.7.5"
-isort = "^5.12.0"
-types-PyJWT = "^1.7.0"
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "black>=23.11.0",
+    "ruff>=0.1.6",
+    "mypy>=1.7.0",
+    "pre-commit>=3.5.0",
+    "bandit>=1.7.5",
+    "isort>=5.12.0",
+    "types-PyJWT>=1.7.0",
+]
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "httpx>=0.25.0",
+]
 
-[tool.poetry.scripts]
+[project.scripts]
 renovate-agent = "renovate_agent.main:main"
 
-[tool.poetry.urls]
-Homepage = "https://github.com/ashmere/RenovateAgent"
-Documentation = "https://github.com/ashmere/RenovateAgent/docs"
-Repository = "https://github.com/ashmere/RenovateAgent"
-Issues = "https://github.com/ashmere/RenovateAgent/issues"
+[project.urls]
+Homepage = "https://github.com/your-org/renovate-agent"
+Documentation = "https://github.com/your-org/renovate-agent/docs"
+Repository = "https://github.com/your-org/renovate-agent"
+Issues = "https://github.com/your-org/renovate-agent/issues"
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+write_to = "src/renovate_agent/_version.py"
 
 [tool.black]
 line-length = 88
@@ -189,3 +209,8 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+tests = ["B201", "B301"]
+skips = ["B101", "B601"]
