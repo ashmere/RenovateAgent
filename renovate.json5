@@ -1,0 +1,189 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+  ],
+  repositories: [
+    'ashmere/docgenai',
+  ],
+  dependencyDashboardTitle: 'Renovate Dashboard',
+  dependencyDashboardLabels: [
+    'renovate',
+    'dependencies',
+  ],
+  dependencyDashboardOSVVulnerabilitySummary: 'all',
+  major: {
+    dependencyDashboardApproval: true
+  },
+  osvVulnerabilityAlerts: true,
+  baseBranches: [
+    'main',
+  ],
+  timezone: 'UTC',
+  schedule: [
+    'before 10am every weekday',
+  ],
+  labels: [
+    'renovate',
+    'dependencies',
+    '{{{updateType}}}',
+    'renovate/datasource/{{{datasource}}}',
+    'renovate/manager/{{{manager}}}',
+  ],
+  assignees: [
+    'ashmere',
+  ],
+  packageRules: [
+    {
+      description: 'Override commitMessageExtra for python',
+      matchPackageNames: [
+        'python/cpython',
+        'python',
+        'docker.io/python',
+        'docker.io/library/python',
+        'mcr.microsoft.com/devcontainers/python',
+      ],
+      commitMessageExtra: 'to {{#if isPinDigest}}{{{newDigestShort}}}{{else}}{{#if isMajor}}{{prettyNewMajor}}{{else}}{{#if isMinor}}v{{newMajor}}.{{newMinor}}{{else}}{{#if isSingleVersion}}{{prettyNewVersion}}{{else}}{{#if newValue}}{{{newValue}}}{{else}}{{{newDigestShort}}}{{/if}}{{/if}}{{/if}}{{/if}}{{/if}}',
+    },
+    {
+      description: 'Require approval for python major and minor versions',
+      matchPackageNames: [
+        'python/cpython',
+        'python',
+        'docker.io/python',
+        'docker.io/library/python',
+        'mcr.microsoft.com/devcontainers/python',
+      ],
+      matchUpdateTypes: [
+        'major',
+        'minor',
+      ],
+      dependencyDashboardApproval: true,
+    },
+    {
+      description: 'Group python packages',
+      matchPackageNames: [
+        'python/cpython',
+        'python',
+        'docker.io/python',
+        'docker.io/library/python',
+        'mcr.microsoft.com/devcontainers/python',
+      ],
+      groupName: 'python runtime patches',
+      separateMultipleMinor: true,
+      separateMinorPatch: true,
+    },
+    {
+      description: 'Python patch releases with scheduling to bypass rate limits',
+      matchPackageNames: [
+        'python/cpython',
+        'python',
+        'docker.io/python',
+        'docker.io/library/python',
+        'mcr.microsoft.com/devcontainers/python',
+      ],
+      matchUpdateTypes: [
+        'patch',
+      ],
+      prPriority: 10,
+      schedule: 'at any time',
+      prCreation: 'immediate',
+      dependencyDashboardApproval: false,
+      prHourlyLimit: 0,
+      prConcurrentLimit: 0,
+    },
+    {
+      description: 'Offer separate patch and minor versions for Python',
+      matchPackageNames: [
+        'python/cpython',
+      ],
+      versioning: 'pep440',
+      separateMinorPatch: true,
+      separateMajorMinor: true,
+    },
+    {
+      description: 'Python dependencies via Poetry',
+      matchManagers: [
+        'poetry',
+      ],
+      groupName: 'Python dependencies',
+      schedule: [
+        'before 10am every weekday',
+      ],
+    },
+    {
+      description: 'GitHub Actions with automerge',
+      matchManagers: [
+        'github-actions',
+      ],
+      groupName: 'GitHub Actions',
+      schedule: [
+        'before 10am every weekday',
+      ],
+      automerge: true,
+      automergeType: 'pr',
+      platformAutomerge: true,
+    },
+  ],
+  customManagers: [
+    {
+      description: 'Update python version in github workflows',
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^.github/workflows/.+\\.yaml$/',
+      ],
+      matchStrings: [
+        '\\s+python-version: [\\\'"]?(?<currentValue>.+?)[\\\'"]?\\s',
+      ],
+      depNameTemplate: 'python/cpython',
+      datasourceTemplate: 'github-releases',
+    },
+    {
+      description: 'Update python version in .python-version files',
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^\\.python-version$/',
+      ],
+      matchStrings: [
+        '^(?<currentValue>.+?)\\s*$',
+      ],
+      depNameTemplate: 'python/cpython',
+      datasourceTemplate: 'github-releases',
+    },
+    {
+      description: 'Update python versions in pyproject.toml (requires-python and Poetry dependencies)',
+      customType: 'regex',
+      managerFilePatterns: [
+        '/pyproject\\.toml$/',
+      ],
+      matchStrings: [
+        'requires-python\\\\s*=\\\\s*[\\\'"]>=?(?<currentValue>[^\\\'"]+)[\\\'"]',
+        'python\\\\s*=\\\\s*[\\\'"]~?(?<currentValue>[0-9.]+)[\\\'"]',
+      ],
+      depNameTemplate: 'python/cpython',
+      datasourceTemplate: 'github-releases',
+    },
+    {
+      description: 'Update python docker images in Dockerfiles (regular and alpine)',
+      customType: 'regex',
+      managerFilePatterns: [
+        '/Dockerfile/',
+      ],
+      matchStrings: [
+        '(\\\\s|/)python:(?<currentValue>\\\\d+\\\\.\\\\d+(?:\\\\.\\\\d+)?)-',
+        '(\\\\s|/)python:(?<currentValue>\\\\d+\\\\.\\\\d+(?:\\\\.\\\\d+)?)-alpine',
+      ],
+      depNameTemplate: 'python',
+      datasourceTemplate: 'docker',
+    },
+  ],
+  prHourlyLimit: 2,
+  prConcurrentLimit: 5,
+  rebaseWhen: 'conflicted',
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: [
+      'before 10am on monday',
+    ],
+  },
+}
