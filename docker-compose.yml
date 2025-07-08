@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  renovate-agent:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/renovate_agent
+      - GITHUB_APP_ID=${GITHUB_APP_ID}
+      - GITHUB_APP_PRIVATE_KEY_PATH=/app/private-key.pem
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+      - GITHUB_ORGANIZATION=${GITHUB_ORGANIZATION}
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./config/private-key.pem:/app/private-key.pem:ro
+      - ./logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    networks:
+      - renovate-network
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=renovate_agent
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./config/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - renovate-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - renovate-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - renovate-agent
+    networks:
+      - renovate-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  renovate-network:
+    driver: bridge

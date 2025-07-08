@@ -1,0 +1,326 @@
+"""
+Configuration management for the Renovate PR Assistant.
+
+This module handles environment variables, settings validation, and configuration
+management using Pydantic Settings for type safety and validation.
+"""
+
+from typing import List, Union
+
+from pydantic import BaseModel, Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class GitHubAppConfig(BaseModel):
+    """GitHub App configuration settings."""
+
+    app_id: int = Field(..., description="GitHub App ID")
+    private_key_path: str = Field(..., description="Path to GitHub App private key")
+    webhook_secret: str = Field(..., description="GitHub webhook secret")
+
+
+class ServerConfig(BaseModel):
+    """Web server configuration settings."""
+
+    host: str = Field(default="0.0.0.0", description="Server host")
+    port: int = Field(default=8000, description="Server port")
+    debug: bool = Field(default=False, description="Enable debug mode")
+
+
+class DatabaseConfig(BaseModel):
+    """Database configuration settings."""
+
+    url: str = Field(
+        default="sqlite:///./renovate_agent.db", description="Database URL"
+    )
+
+
+class DependencyFixerConfig(BaseModel):
+    """Dependency fixer configuration settings."""
+
+    enabled: bool = Field(default=True, description="Enable dependency fixing")
+    supported_languages: List[str] = Field(
+        default=["python", "typescript", "go"],
+        description="List of supported languages",
+    )
+    clone_timeout: int = Field(default=300, description="Git clone timeout in seconds")
+    update_timeout: int = Field(
+        default=600, description="Dependency update timeout in seconds"
+    )
+
+
+class DashboardConfig(BaseModel):
+    """Dashboard configuration settings."""
+
+    issue_title: str = Field(
+        default="Renovate PRs Assistant Dashboard",
+        description="Title for dashboard issues",
+    )
+    update_on_events: bool = Field(
+        default=True, description="Update dashboard on webhook events"
+    )
+
+
+class Settings(BaseSettings):
+    """Main application settings."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+        env_parse_none_str=None,
+        env_parse_enums=False,
+    )
+
+    # GitHub configuration
+    github_app_id: int = Field(default=0, description="GitHub App ID (0 for PAT mode)")
+    github_app_private_key_path: str = Field(
+        default="", description="GitHub App private key path"
+    )
+    github_webhook_secret: str = Field(
+        default="dev-secret", description="GitHub webhook secret"
+    )
+    github_personal_access_token: str = Field(
+        default="", description="GitHub Personal Access Token (for development)"
+    )
+    github_api_url: str = Field(
+        default="https://api.github.com", description="GitHub API URL"
+    )
+    github_organization: str = Field(..., description="GitHub organization name")
+
+    # Server configuration
+    host: str = Field(default="0.0.0.0", description="Server host")
+    port: int = Field(default=8000, description="Server port")
+    debug: bool = Field(default=False, description="Enable debug mode")
+
+    # Database configuration
+    database_url: str = Field(
+        default="sqlite:///./renovate_agent.db", description="Database URL"
+    )
+
+    # Logging configuration
+    log_level: str = Field(default="INFO", description="Log level")
+    log_format: str = Field(default="json", description="Log format")
+
+    # Dependency fixer configuration
+    enable_dependency_fixing: bool = Field(
+        default=True, description="Enable dependency fixing"
+    )
+    supported_languages: Union[str, List[str]] = Field(
+        default="python,typescript,go",
+        description="Supported languages for dependency fixing (comma-separated)",
+    )
+    clone_timeout: int = Field(default=300, description="Git clone timeout")
+    dependency_update_timeout: int = Field(
+        default=600, description="Dependency update timeout"
+    )
+
+    # Dashboard configuration
+    dashboard_issue_title: str = Field(
+        default="Renovate PRs Assistant Dashboard", description="Dashboard issue title"
+    )
+    update_dashboard_on_events: bool = Field(
+        default=True, description="Update dashboard on events"
+    )
+
+    # Rate limiting
+    github_api_rate_limit: int = Field(
+        default=5000, description="GitHub API rate limit"
+    )
+    webhook_rate_limit: int = Field(default=1000, description="Webhook rate limit")
+
+    # Security
+    allowed_origins: Union[str, List[str]] = Field(
+        default="https://github.com",
+        description="Allowed CORS origins (comma-separated)",
+    )
+    enable_cors: bool = Field(default=True, description="Enable CORS")
+
+    # Repository Management
+    github_repository_allowlist: Union[str, List[str]] = Field(
+        default="",
+        description="Optional allowlist of repositories to monitor "
+        "(comma-separated repo names without org prefix). "
+        "If empty, monitors all repos in org.",
+    )
+    github_test_repositories: Union[str, List[str]] = Field(
+        default="",
+        description="Test repositories for validation and testing "
+        "(comma-separated full names with org/repo format)",
+    )
+    ignore_archived_repositories: bool = Field(
+        default=True, description="Ignore archived repositories"
+    )
+
+    @field_validator("supported_languages", mode="before")
+    @classmethod
+    def parse_supported_languages(cls, v):
+        """Parse supported languages from comma-separated string or list."""
+        if isinstance(v, str):
+            # Handle comma-separated string format
+            return [lang.strip() for lang in v.split(",") if lang.strip()]
+        elif isinstance(v, list):
+            # Handle list format (from JSON or direct assignment)
+            return v
+        else:
+            error_msg = (
+                f"supported_languages must be a string or list, " f"got {type(v)}"
+            )
+            raise ValueError(error_msg)
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, v):
+        """Parse allowed origins from comma-separated string or list."""
+        if isinstance(v, str):
+            # Handle comma-separated string format
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        elif isinstance(v, list):
+            # Handle list format (from JSON or direct assignment)
+            return v
+        else:
+            error_msg = f"allowed_origins must be a string or list, " f"got {type(v)}"
+            raise ValueError(error_msg)
+
+    @field_validator("github_repository_allowlist", mode="before")
+    @classmethod
+    def parse_repository_allowlist(cls, v):
+        """Parse repository allowlist from comma-separated string or list."""
+        if isinstance(v, str):
+            if not v.strip():
+                return []
+            return [repo.strip() for repo in v.split(",") if repo.strip()]
+        elif isinstance(v, list):
+            return v
+        else:
+            error_msg = (
+                f"github_repository_allowlist must be a string or list, "
+                f"got {type(v)}"
+            )
+            raise ValueError(error_msg)
+
+    @field_validator("github_test_repositories", mode="before")
+    @classmethod
+    def parse_test_repositories(cls, v):
+        """Parse test repositories from comma-separated string or list."""
+        if isinstance(v, str):
+            if not v.strip():
+                return []
+            return [repo.strip() for repo in v.split(",") if repo.strip()]
+        elif isinstance(v, list):
+            return v
+        else:
+            error_msg = (
+                f"github_test_repositories must be a string or list, " f"got {type(v)}"
+            )
+            raise ValueError(error_msg)
+
+    @field_validator("supported_languages")
+    @classmethod
+    def validate_supported_languages(cls, v):
+        """Validate supported languages list."""
+        allowed_languages = {"python", "typescript", "javascript", "go"}
+        for lang in v:
+            if lang not in allowed_languages:
+                raise ValueError(f"Unsupported language: {lang}")
+        return v
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, v):
+        """Validate log level."""
+        allowed_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        if v.upper() not in allowed_levels:
+            raise ValueError(f"Invalid log level: {v}")
+        return v.upper()
+
+    @property
+    def github_app_config(self) -> GitHubAppConfig:
+        """Get GitHub App configuration."""
+        return GitHubAppConfig(
+            app_id=self.github_app_id,
+            private_key_path=self.github_app_private_key_path,
+            webhook_secret=self.github_webhook_secret,
+        )
+
+    @property
+    def is_development_mode(self) -> bool:
+        """Check if running in development mode (using PAT)."""
+        return bool(self.github_personal_access_token and self.github_app_id == 0)
+
+    @property
+    def server_config(self) -> ServerConfig:
+        """Get server configuration."""
+        return ServerConfig(host=self.host, port=self.port, debug=self.debug)
+
+    @property
+    def database_config(self) -> DatabaseConfig:
+        """Get database configuration."""
+        return DatabaseConfig(url=self.database_url)
+
+    @property
+    def dependency_fixer_config(self) -> DependencyFixerConfig:
+        """Get dependency fixer configuration."""
+        return DependencyFixerConfig(
+            enabled=self.enable_dependency_fixing,
+            supported_languages=self.supported_languages,
+            clone_timeout=self.clone_timeout,
+            update_timeout=self.dependency_update_timeout,
+        )
+
+    @property
+    def dashboard_config(self) -> DashboardConfig:
+        """Get dashboard configuration."""
+        return DashboardConfig(
+            issue_title=self.dashboard_issue_title,
+            update_on_events=self.update_dashboard_on_events,
+        )
+
+    def should_process_repository(
+        self, repo_name: str, is_archived: bool = False
+    ) -> bool:
+        """
+        Check if a repository should be processed.
+
+        Args:
+            repo_name: Repository name (without org prefix)
+            is_archived: Whether the repository is archived
+
+        Returns:
+            True if repository should be processed
+        """
+        # Always ignore archived repositories if configured
+        if is_archived and self.ignore_archived_repositories:
+            return False
+
+        # If no allowlist is set, process all repositories
+        if not self.github_repository_allowlist:
+            return True
+
+        # Check if repository is in allowlist
+        return repo_name in self.github_repository_allowlist
+
+    def get_test_repositories(self) -> List[str]:
+        """Get list of test repositories."""
+        return self.github_test_repositories
+
+
+# Global settings instance - initialized lazily to avoid import-time errors
+_settings_instance = None
+
+
+def get_settings() -> Settings:
+    """Get the global settings instance, creating it if necessary."""
+    global _settings_instance
+    if _settings_instance is None:
+        _settings_instance = Settings()
+    return _settings_instance
+
+
+# For backward compatibility
+def __getattr__(name):
+    """Allow module-level access to settings attributes."""
+    if name == "settings":
+        return get_settings()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
