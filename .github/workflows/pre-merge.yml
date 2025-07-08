@@ -23,30 +23,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: |
-          poetry install --no-interaction --no-root
-          # Install package in development mode
-          poetry install --no-interaction
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .[dev]
 
       - name: Run pre-commit hooks
         run: |
-          poetry run pre-commit run --all-files
+          pre-commit run --all-files
 
   test:
     runs-on: ubuntu-latest
@@ -63,25 +48,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: |
-          poetry install --no-interaction --no-root
-          poetry install --no-interaction
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .[dev]
 
       - name: Check if tests exist
         id: check-tests
@@ -94,53 +65,59 @@ jobs:
             echo "⚠️ No tests directory or test files found"
           fi
 
-      - name: Run unit tests (no external dependencies)
+      - name: Run unit tests
         if: steps.check-tests.outputs.tests_exist == 'true'
         run: |
-          # Run tests that don't require model downloads or external APIs
-          # Using markers to exclude tests that need external dependencies
-          poetry run pytest \
+          # Run unit tests with coverage
+          pytest tests/ \
             -v \
             --tb=short \
-            -m "not requires_model and not requires_api and not slow" \
+            -m "not integration and not slow" \
             --maxfail=5 \
-            --disable-warnings \
-            tests/
+            --cov=renovate_agent \
+            --cov-report=term-missing \
+            --cov-report=xml
+        env:
+          # Mock environment variables for testing
+          GITHUB_APP_ID: "0"
+          GITHUB_PERSONAL_ACCESS_TOKEN: "test-token"
+          GITHUB_ORGANIZATION: "test-org"
+          DEBUG: "true"
 
       - name: Run basic import tests
         run: |
-          # Test that core modules can be imported without downloading models
-          poetry run python -c "
+          # Test that core modules can be imported
+          python -c "
           import sys
           sys.path.insert(0, 'src')
 
           # Test basic imports
           try:
-              from docgenai import config
+              from renovate_agent import config
               print('✅ Config module imported successfully')
           except Exception as e:
               print(f'❌ Config import failed: {e}')
               sys.exit(1)
 
           try:
-              from docgenai import cli
-              print('✅ CLI module imported successfully')
+              from renovate_agent import github_client
+              print('✅ GitHub client module imported successfully')
           except Exception as e:
-              print(f'❌ CLI import failed: {e}')
+              print(f'❌ GitHub client import failed: {e}')
               sys.exit(1)
 
           try:
-              from docgenai import file_selector
-              print('✅ File selector module imported successfully')
+              from renovate_agent import pr_processor
+              print('✅ PR processor module imported successfully')
           except Exception as e:
-              print(f'❌ File selector import failed: {e}')
+              print(f'❌ PR processor import failed: {e}')
               sys.exit(1)
 
           try:
-              from docgenai.chaining import chain, step
-              print('✅ Chaining modules imported successfully')
+              from renovate_agent.dependency_fixer import factory
+              print('✅ Dependency fixer modules imported successfully')
           except Exception as e:
-              print(f'❌ Chaining import failed: {e}')
+              print(f'❌ Dependency fixer import failed: {e}')
               sys.exit(1)
 
           print('✅ All basic imports successful')
@@ -149,26 +126,79 @@ jobs:
       - name: Test configuration loading
         run: |
           # Test that configuration can be loaded without errors
-          poetry run python -c "
+          python -c "
           import sys
           sys.path.insert(0, 'src')
+          import os
 
-          from docgenai.config import load_config
+          # Set test environment variables
+          os.environ['GITHUB_APP_ID'] = '0'
+          os.environ['GITHUB_PERSONAL_ACCESS_TOKEN'] = 'test-token'
+          os.environ['GITHUB_ORGANIZATION'] = 'test-org'
+          os.environ['DEBUG'] = 'true'
+
+          from renovate_agent.config import get_settings
 
           try:
-              config = load_config()
+              settings = get_settings()
               print('✅ Configuration loaded successfully')
-              print(f'   Model config: {config.get(\"model\", {}).get(\"mlx_model\", \"Not found\")}')
-              print(f'   Cache enabled: {config.get(\"cache\", {}).get(\"enabled\", False)}')
+              print(f'   GitHub org: {settings.github_organization}')
+              print(f'   Debug mode: {settings.debug}')
+              print(f'   Development mode: {settings.is_development_mode}')
           except Exception as e:
               print(f'❌ Configuration loading failed: {e}')
               sys.exit(1)
           "
 
-      - name: Test CLI help (no model loading)
+      - name: Test FastAPI app creation
         run: |
-          # Test that CLI help works without loading models
-          poetry run docgenai --help
+          # Test that FastAPI app can be created
+          python -c "
+          import sys
+          sys.path.insert(0, 'src')
+          import os
+
+          # Set test environment variables
+          os.environ['GITHUB_APP_ID'] = '0'
+          os.environ['GITHUB_PERSONAL_ACCESS_TOKEN'] = 'test-token'
+          os.environ['GITHUB_ORGANIZATION'] = 'test-org'
+          os.environ['DEBUG'] = 'true'
+
+          try:
+              from renovate_agent.main import app
+              print('✅ FastAPI app created successfully')
+              print(f'   App title: {app.title}')
+          except Exception as e:
+              print(f'❌ FastAPI app creation failed: {e}')
+              sys.exit(1)
+          "
+
+      - name: Run dry-mode integration tests
+        run: |
+          # Run scripts in dry mode to test integrations
+          echo "🧪 Running dry-mode integration tests..."
+
+          # Test GitHub connection (dry mode)
+          python -c "
+          import sys
+          sys.path.insert(0, 'scripts')
+          sys.path.insert(0, 'src')
+          import os
+
+          # Set test environment variables
+          os.environ['GITHUB_APP_ID'] = '0'
+          os.environ['GITHUB_PERSONAL_ACCESS_TOKEN'] = 'test-token'
+          os.environ['GITHUB_ORGANIZATION'] = 'test-org'
+          os.environ['DEBUG'] = 'true'
+
+          try:
+              # Test that the GitHub connection script can be imported
+              import test_github_connection
+              print('✅ GitHub connection test script imported successfully')
+          except Exception as e:
+              print(f'⚠️ GitHub connection test import failed: {e}')
+              # Not failing CI for this as it might need real credentials
+          "
 
       - name: Validate project structure
         run: |
@@ -177,11 +207,14 @@ jobs:
 
           required_files=(
             "pyproject.toml"
-            "config.yaml"
-            "src/docgenai/__init__.py"
-            "src/docgenai/cli.py"
-            "src/docgenai/config.py"
-            "src/docgenai/core.py"
+            "requirements.txt"
+            "src/renovate_agent/__init__.py"
+            "src/renovate_agent/main.py"
+            "src/renovate_agent/config.py"
+            "src/renovate_agent/github_client.py"
+            "src/renovate_agent/pr_processor.py"
+            "src/renovate_agent/webhook_listener.py"
+            "src/renovate_agent/issue_manager.py"
           )
 
           for file in "${required_files[@]}"; do
@@ -194,3 +227,10 @@ jobs:
           done
 
           echo "✅ Project structure validation passed"
+
+      - name: Upload coverage reports
+        if: steps.check-tests.outputs.tests_exist == 'true'
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
