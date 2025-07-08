@@ -111,7 +111,7 @@ class WebhookListener:
         ):
             logger.error(
                 "Invalid webhook signature",
-                github_event_type=x_github_event,
+                event_type=x_github_event,
                 delivery_id=x_github_delivery,
             )
             raise HTTPException(status_code=401, detail="Invalid signature")
@@ -122,7 +122,7 @@ class WebhookListener:
         except json.JSONDecodeError as e:
             logger.error(
                 "Invalid JSON payload",
-                github_event_type=x_github_event,
+                event_type=x_github_event,
                 delivery_id=x_github_delivery,
                 error=str(e),
             )
@@ -131,7 +131,7 @@ class WebhookListener:
         # Log webhook event
         logger.info(
             "Received GitHub webhook",
-            github_event_type=x_github_event,
+            event_type=x_github_event,
             action=data.get("action"),
             delivery_id=x_github_delivery,
             repository=data.get("repository", {}).get("full_name"),
@@ -139,9 +139,7 @@ class WebhookListener:
 
         # Check if event is supported
         if x_github_event not in self.supported_events:
-            logger.info(
-                "Unsupported event type, ignoring", github_event_type=x_github_event
-            )
+            logger.info("Unsupported event type, ignoring", event_type=x_github_event)
             return JSONResponse(
                 content={"message": "Event not supported"}, status_code=200
             )
@@ -158,7 +156,7 @@ class WebhookListener:
         except Exception as e:
             logger.error(
                 "Failed to process webhook event",
-                github_event_type=x_github_event,
+                event_type=x_github_event,
                 delivery_id=x_github_delivery,
                 error=str(e),
             )

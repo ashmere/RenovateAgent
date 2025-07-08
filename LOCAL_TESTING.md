@@ -9,17 +9,20 @@ This guide shows you how to run the Renovate PR Assistant locally for testing wi
 If you have `gh` CLI installed and authenticated:
 
 ```bash
-# 1. Run the setup script
-python scripts/local_setup.py
+# 1. Install dependencies
+poetry install
 
-# 2. Test the connection
-python scripts/test_github_connection.py
+# 2. Run the setup script
+poetry run python scripts/local_setup.py
 
-# 3. Test repository access (optional)
-python scripts/test_target_repos.py
+# 3. Test the connection
+poetry run python scripts/test_github_connection.py
 
-# 4. Start the server
-python -m renovate_agent.main
+# 4. Test repository access (optional)
+poetry run python scripts/test_target_repos.py
+
+# 5. Start the server
+poetry run python -m renovate_agent.main
 ```
 
 ### Option 2: Manual Token Setup
@@ -35,15 +38,16 @@ If you don't have GitHub CLI:
 2. **Set up environment:**
    ```bash
    export GITHUB_TOKEN=your_token_here
-   python scripts/local_setup.py
+   poetry install
+   poetry run python scripts/local_setup.py
    ```
 
 3. **Test and run:**
    ```bash
-   python scripts/test_github_connection.py
-   python scripts/test_target_repos.py      # Test repository access
-   python scripts/test_webhook.py           # Test webhook processing
-   python -m renovate_agent.main
+   poetry run python scripts/test_github_connection.py
+   poetry run python scripts/test_target_repos.py      # Test repository access
+   poetry run python scripts/test_webhook.py           # Test webhook processing
+   poetry run python -m renovate_agent.main
    ```
 
 ## What You Get
@@ -70,7 +74,7 @@ To test webhook processing locally:
 
 1. **Start the server:**
    ```bash
-   python -m renovate_agent.main
+   poetry run python -m renovate_agent.main
    ```
 
 2. **Send test webhook:** You can use curl or any HTTP client:

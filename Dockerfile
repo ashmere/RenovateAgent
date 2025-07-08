@@ -8,20 +8,27 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Poetry
+ENV POETRY_HOME="/opt/poetry"
+ENV POETRY_CACHE_DIR=/opt/poetry/.cache
+ENV POETRY_VENV_IN_PROJECT=1
+ENV POETRY_NO_INTERACTION=1
+RUN pip install poetry
+
 # Set work directory
 WORKDIR /app
 
+# Copy Poetry configuration files
+COPY pyproject.toml poetry.lock ./
+
 # Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN poetry install --only=main --no-root
 
 # Copy source code
 COPY src/ ./src/
-COPY setup.py pyproject.toml ./
 
 # Install the package
-RUN pip install -e .
+RUN poetry install --only-root
 
 # Production image
 FROM python:3.12-slim as production
@@ -38,22 +45,21 @@ RUN useradd --create-home --shell /bin/bash renovate
 # Set work directory
 WORKDIR /app
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY --from=builder /app/src ./src
-COPY --from=builder /app/setup.py /app/pyproject.toml ./
-
-# Install the package
-RUN pip install -e .
+COPY --from=builder /app/pyproject.toml ./
 
 # Change ownership to non-root user
 RUN chown -R renovate:renovate /app
 
 # Switch to non-root user
 USER renovate
+
+# Add virtual environment to PATH
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Expose port
 EXPOSE 8000
@@ -63,4 +69,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the application
-CMD ["uvicorn", "renovate_agent.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "renovate_agent.main"]

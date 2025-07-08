@@ -61,9 +61,9 @@ graph TD
 ### Prerequisites
 
 - Python 3.8 or higher
+- [Poetry](https://python-poetry.org/) for dependency management
 - Git
 - A GitHub App with appropriate permissions OR a GitHub Personal Access Token (for development)
-- Virtual environment (recommended)
 
 ### Installation
 
@@ -73,12 +73,13 @@ graph TD
    cd renovate-agent
    ```
 
-2. **Set up Python environment**
+2. **Install dependencies with Poetry**
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   pip install -e .
+   # Install Poetry if you haven't already
+   curl -sSL https://install.python-poetry.org | python3 -
+
+   # Install project dependencies
+   poetry install
    ```
 
 3. **Configure environment**
@@ -90,12 +91,12 @@ graph TD
 4. **Run the application**
    ```bash
    # For production with GitHub App
-   renovate-agent
-   # Or: uvicorn renovate_agent.main:app --reload
+   poetry run python -m renovate_agent.main
+   # Or: poetry run uvicorn renovate_agent.main:app --reload
 
    # For local development with Personal Access Token
    # See LOCAL_TESTING.md for simplified setup
-   python -m renovate_agent.main
+   poetry run python -m renovate_agent.main
    ```
 
 ## ⚙️ Configuration
@@ -241,15 +242,21 @@ Secure handling of GitHub App private keys with proper rotation practices.
 FROM python:3.12-slim
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
 
+# Install Poetry
+RUN pip install poetry
+ENV POETRY_VENV_IN_PROJECT=1
+
+# Copy Poetry configuration
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --only=main
+
+# Copy source code
 COPY src/ ./src/
-COPY setup.py .
-RUN pip install -e .
+RUN poetry install --only-root
 
 EXPOSE 8000
-CMD ["uvicorn", "renovate_agent.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["poetry", "run", "python", "-m", "renovate_agent.main"]
 ```
 
 ### Production Considerations
@@ -263,13 +270,13 @@ CMD ["uvicorn", "renovate_agent.main:app", "--host", "0.0.0.0", "--port", "8000"
 
 ### Run Tests
 ```bash
-pytest tests/
-pytest --cov=renovate_agent tests/  # With coverage
+poetry run pytest tests/
+poetry run pytest --cov=renovate_agent tests/  # With coverage
 ```
 
 ### Integration Tests
 ```bash
-pytest tests/integration/ -m integration
+poetry run pytest tests/integration/ -m integration
 ```
 
 ## 📚 Documentation
@@ -286,13 +293,13 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 ### Development Setup
 ```bash
 # Install development dependencies
-pip install -r requirements.txt -e .[dev]
+poetry install
 
 # Set up pre-commit hooks
-pre-commit install
+poetry run pre-commit install
 
 # Run the test suite
-pytest
+poetry run pytest
 ```
 
 ### Code Style
