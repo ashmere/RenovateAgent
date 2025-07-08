@@ -11,8 +11,12 @@ from typing import Any, Dict, Optional
 class RenovateAgentError(Exception):
     """Base exception for Renovate PR Assistant errors."""
 
-    def __init__(self, message: str, code: Optional[str] = None,
-                 context: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        message: str,
+        code: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(message)
         self.code = code or "RENOVATE_AGENT_ERROR"
         self.context = context or {}
@@ -21,8 +25,12 @@ class RenovateAgentError(Exception):
 class GitHubAPIError(RenovateAgentError):
     """Exception for GitHub API related errors."""
 
-    def __init__(self, message: str, status_code: Optional[int] = None,
-                 context: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(message, "GITHUB_API_ERROR", context)
         self.status_code = status_code
 
@@ -37,8 +45,12 @@ class AuthenticationError(RenovateAgentError):
 class RateLimitError(RenovateAgentError):
     """Exception for rate limit related errors."""
 
-    def __init__(self, message: str, reset_time: Optional[float] = None,
-                 context: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        message: str,
+        reset_time: Optional[float] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(message, "RATE_LIMIT_ERROR", context)
         self.reset_time = reset_time
 
@@ -53,8 +65,12 @@ class WebhookValidationError(RenovateAgentError):
 class DependencyFixingError(RenovateAgentError):
     """Exception for dependency fixing errors."""
 
-    def __init__(self, message: str, language: Optional[str] = None,
-                 context: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        message: str,
+        language: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(message, "DEPENDENCY_FIXING_ERROR", context)
         self.language = language
 
@@ -69,9 +85,13 @@ class ConfigurationError(RenovateAgentError):
 class PRProcessingError(RenovateAgentError):
     """Exception for PR processing errors."""
 
-    def __init__(self, message: str, pr_number: Optional[int] = None,
-                 repo_name: Optional[str] = None,
-                 context: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        message: str,
+        pr_number: Optional[int] = None,
+        repo_name: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(message, "PR_PROCESSING_ERROR", context)
         self.pr_number = pr_number
         self.repo_name = repo_name
@@ -80,8 +100,12 @@ class PRProcessingError(RenovateAgentError):
 class IssueStateError(RenovateAgentError):
     """Exception for issue state management errors."""
 
-    def __init__(self, message: str, issue_number: Optional[int] = None,
-                 context: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        message: str,
+        issue_number: Optional[int] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(message, "ISSUE_STATE_ERROR", context)
         self.issue_number = issue_number
 
@@ -96,7 +120,11 @@ class DatabaseError(RenovateAgentError):
 class ExternalServiceError(RenovateAgentError):
     """Exception for external service errors."""
 
-    def __init__(self, message: str, service: Optional[str] = None,
-                 context: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        message: str,
+        service: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(message, "EXTERNAL_SERVICE_ERROR", context)
         self.service = service

@@ -60,14 +60,16 @@ class PythonPoetryFixer(DependencyFixer):
                     logger.debug("Not a Poetry project", repo_path=str(repo_path))
                     return False
         except Exception as e:
-            logger.error("Failed to read pyproject.toml",
-                        repo_path=str(repo_path),
-                        error=str(e))
+            logger.error(
+                "Failed to read pyproject.toml", repo_path=str(repo_path), error=str(e)
+            )
             return False
 
-        logger.info("Poetry project detected",
-                   repo_path=str(repo_path),
-                   has_lock_file=await self.check_file_exists(poetry_lock_path))
+        logger.info(
+            "Poetry project detected",
+            repo_path=str(repo_path),
+            has_lock_file=await self.check_file_exists(poetry_lock_path),
+        )
 
         return True
 
@@ -82,17 +84,14 @@ class PythonPoetryFixer(DependencyFixer):
         Returns:
             Fix result
         """
-        logger.info("Starting Poetry dependency fix",
-                   repo_path=str(repo_path),
-                   branch=branch)
+        logger.info(
+            "Starting Poetry dependency fix", repo_path=str(repo_path), branch=branch
+        )
 
         try:
             # Check if Poetry is available
             if not await self.validate_tools():
-                return {
-                    "success": False,
-                    "error": "Poetry is not available"
-                }
+                return {"success": False, "error": "Poetry is not available"}
 
             # Run poetry lock to update lock file
             lock_result = await self._run_poetry_lock(repo_path)
@@ -107,25 +106,24 @@ class PythonPoetryFixer(DependencyFixer):
             # Check for changes
             changed_files = await self.get_changed_files(repo_path)
 
-            logger.info("Poetry dependency fix completed",
-                       repo_path=str(repo_path),
-                       changed_files=changed_files)
+            logger.info(
+                "Poetry dependency fix completed",
+                repo_path=str(repo_path),
+                changed_files=changed_files,
+            )
 
             return {
                 "success": True,
                 "changes": changed_files,
                 "commands_run": ["poetry lock", "poetry install"],
-                "message": "Poetry dependencies updated successfully"
+                "message": "Poetry dependencies updated successfully",
             }
 
         except Exception as e:
-            logger.error("Poetry dependency fix failed",
-                        repo_path=str(repo_path),
-                        error=str(e))
-            return {
-                "success": False,
-                "error": f"Poetry dependency fix failed: {e}"
-            }
+            logger.error(
+                "Poetry dependency fix failed", repo_path=str(repo_path), error=str(e)
+            )
+            return {"success": False, "error": f"Poetry dependency fix failed: {e}"}
 
     async def _run_poetry_lock(self, repo_path: Path) -> Dict[str, Any]:
         """
@@ -144,13 +142,12 @@ class PythonPoetryFixer(DependencyFixer):
         result = await self.run_command(cmd, repo_path)
 
         if result["success"]:
-            logger.info("poetry lock completed successfully",
-                       repo_path=str(repo_path))
+            logger.info("poetry lock completed successfully", repo_path=str(repo_path))
             return {"success": True, "output": result["stdout"]}
         else:
-            logger.error("poetry lock failed",
-                        repo_path=str(repo_path),
-                        error=result["stderr"])
+            logger.error(
+                "poetry lock failed", repo_path=str(repo_path), error=result["stderr"]
+            )
 
             # Try with update if no-update fails
             logger.info("Retrying poetry lock with update", repo_path=str(repo_path))
@@ -158,13 +155,15 @@ class PythonPoetryFixer(DependencyFixer):
             result_update = await self.run_command(cmd_update, repo_path)
 
             if result_update["success"]:
-                logger.info("poetry lock with update completed successfully",
-                           repo_path=str(repo_path))
+                logger.info(
+                    "poetry lock with update completed successfully",
+                    repo_path=str(repo_path),
+                )
                 return {"success": True, "output": result_update["stdout"]}
             else:
                 return {
                     "success": False,
-                    "error": f"poetry lock failed: {result_update['stderr']}"
+                    "error": f"poetry lock failed: {result_update['stderr']}",
                 }
 
     async def _run_poetry_install(self, repo_path: Path) -> Dict[str, Any]:
@@ -184,13 +183,16 @@ class PythonPoetryFixer(DependencyFixer):
         result = await self.run_command(cmd, repo_path)
 
         if result["success"]:
-            logger.info("poetry install completed successfully",
-                       repo_path=str(repo_path))
+            logger.info(
+                "poetry install completed successfully", repo_path=str(repo_path)
+            )
             return {"success": True, "output": result["stdout"]}
         else:
-            logger.warning("poetry install failed, but this might be expected",
-                          repo_path=str(repo_path),
-                          error=result["stderr"])
+            logger.warning(
+                "poetry install failed, but this might be expected",
+                repo_path=str(repo_path),
+                error=result["stderr"],
+            )
             # Don't fail the entire process if install fails,
             # as the lock file update might still be valid
             return {"success": True, "output": result["stderr"], "warning": True}
@@ -244,16 +246,20 @@ class PythonPoetryFixer(DependencyFixer):
 
             dependencies = []
             if result["success"]:
-                for line in result["stdout"].split('\n'):
+                for line in result["stdout"].split("\n"):
                     line = line.strip()
-                    if line and not line.startswith('Warning'):
+                    if line and not line.startswith("Warning"):
                         parts = line.split()
                         if len(parts) >= 2:
-                            dependencies.append({
-                                "name": parts[0],
-                                "version": parts[1],
-                                "description": " ".join(parts[2:]) if len(parts) > 2 else ""
-                            })
+                            dependencies.append(
+                                {
+                                    "name": parts[0],
+                                    "version": parts[1],
+                                    "description": (
+                                        " ".join(parts[2:]) if len(parts) > 2 else ""
+                                    ),
+                                }
+                            )
 
             # Get outdated dependencies
             cmd_outdated = ["poetry", "show", "--outdated", "--no-ansi"]
@@ -261,28 +267,30 @@ class PythonPoetryFixer(DependencyFixer):
 
             outdated = []
             if result_outdated["success"]:
-                for line in result_outdated["stdout"].split('\n'):
+                for line in result_outdated["stdout"].split("\n"):
                     line = line.strip()
-                    if line and not line.startswith('Warning'):
+                    if line and not line.startswith("Warning"):
                         parts = line.split()
                         if len(parts) >= 3:
-                            outdated.append({
-                                "name": parts[0],
-                                "current": parts[1],
-                                "latest": parts[2]
-                            })
+                            outdated.append(
+                                {
+                                    "name": parts[0],
+                                    "current": parts[1],
+                                    "latest": parts[2],
+                                }
+                            )
 
             return {
                 "total_dependencies": len(dependencies),
                 "dependencies": dependencies,
                 "outdated_count": len(outdated),
-                "outdated": outdated
+                "outdated": outdated,
             }
 
         except Exception as e:
-            logger.error("Failed to get dependency info",
-                        repo_path=str(repo_path),
-                        error=str(e))
+            logger.error(
+                "Failed to get dependency info", repo_path=str(repo_path), error=str(e)
+            )
             return {"error": str(e)}
 
     async def check_lock_file_consistency(self, repo_path: Path) -> Dict[str, Any]:
@@ -303,20 +311,19 @@ class PythonPoetryFixer(DependencyFixer):
             if result["success"]:
                 return {
                     "consistent": True,
-                    "message": "Lock file is consistent with pyproject.toml"
+                    "message": "Lock file is consistent with pyproject.toml",
                 }
             else:
                 return {
                     "consistent": False,
                     "error": result["stderr"],
-                    "message": "Lock file is not consistent with pyproject.toml"
+                    "message": "Lock file is not consistent with pyproject.toml",
                 }
 
         except Exception as e:
-            logger.error("Failed to check lock file consistency",
-                        repo_path=str(repo_path),
-                        error=str(e))
-            return {
-                "consistent": False,
-                "error": str(e)
-            }
+            logger.error(
+                "Failed to check lock file consistency",
+                repo_path=str(repo_path),
+                error=str(e),
+            )
+            return {"consistent": False, "error": str(e)}

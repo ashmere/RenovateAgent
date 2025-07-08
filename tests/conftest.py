@@ -2,9 +2,10 @@
 Pytest configuration and fixtures for Renovate PR Assistant tests.
 """
 
-import pytest
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock
-from typing import Dict, Any
+
+import pytest
 
 from renovate_agent.config import Settings
 from renovate_agent.github_client import GitHubClient
@@ -37,7 +38,9 @@ def mock_github_client() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_pr_processor(mock_github_client: AsyncMock, mock_settings: Settings) -> PRProcessor:
+def mock_pr_processor(
+    mock_github_client: AsyncMock, mock_settings: Settings
+) -> PRProcessor:
     """Mock PR processor for testing."""
     return PRProcessor(mock_github_client, mock_settings)
 
@@ -50,21 +53,15 @@ def sample_pr_data() -> Dict[str, Any]:
         "title": "Update dependency example to v1.2.3",
         "body": "This PR updates the dependency as requested.",
         "state": "open",
-        "user": {
-            "login": "renovate[bot]",
-            "type": "Bot"
-        },
-        "head": {
-            "ref": "renovate/example-1.2.3",
-            "sha": "abc123"
-        },
+        "user": {"login": "renovate[bot]", "type": "Bot"},
+        "head": {"ref": "renovate/example-1.2.3", "sha": "abc123"},
         "base": {
             "ref": "main",
             "repo": {
                 "full_name": "test-org/test-repo",
-                "clone_url": "https://github.com/test-org/test-repo.git"
-            }
-        }
+                "clone_url": "https://github.com/test-org/test-repo.git",
+            },
+        },
     }
 
 
@@ -78,25 +75,14 @@ def sample_webhook_payload() -> Dict[str, Any]:
             "number": 123,
             "title": "Update dependency example to v1.2.3",
             "state": "open",
-            "user": {
-                "login": "renovate[bot]",
-                "type": "Bot"
-            },
-            "head": {
-                "ref": "renovate/example-1.2.3",
-                "sha": "abc123"
-            },
-            "base": {
-                "ref": "main",
-                "repo": {
-                    "full_name": "test-org/test-repo"
-                }
-            }
+            "user": {"login": "renovate[bot]", "type": "Bot"},
+            "head": {"ref": "renovate/example-1.2.3", "sha": "abc123"},
+            "base": {"ref": "main", "repo": {"full_name": "test-org/test-repo"}},
         },
         "repository": {
             "full_name": "test-org/test-repo",
-            "clone_url": "https://github.com/test-org/test-repo.git"
-        }
+            "clone_url": "https://github.com/test-org/test-repo.git",
+        },
     }
 
 
@@ -108,15 +94,7 @@ def sample_check_suite() -> Dict[str, Any]:
         "status": "completed",
         "conclusion": "success",
         "check_runs": [
-            {
-                "name": "CI",
-                "status": "completed",
-                "conclusion": "success"
-            },
-            {
-                "name": "Security Scan",
-                "status": "completed", 
-                "conclusion": "success"
-            }
-        ]
+            {"name": "CI", "status": "completed", "conclusion": "success"},
+            {"name": "Security Scan", "status": "completed", "conclusion": "success"},
+        ],
     }

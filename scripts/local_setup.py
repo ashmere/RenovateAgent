@@ -16,10 +16,7 @@ def get_github_token_from_cli():
     """Get GitHub token from gh CLI if available."""
     try:
         result = subprocess.run(
-            ["gh", "auth", "token"],
-            capture_output=True,
-            text=True,
-            check=True
+            ["gh", "auth", "token"], capture_output=True, text=True, check=True
         )
         return result.stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -57,7 +54,7 @@ SUPPORTED_LANGUAGES=["python", "typescript", "go"]
 
     with open(".env", "w") as f:
         f.write(env_content)
-    
+
     print("✅ Created .env file for local development")
 
 
@@ -74,7 +71,7 @@ def main():
     # Try to get token from gh CLI
     print("🔍 Checking for GitHub CLI authentication...")
     token = get_github_token_from_cli()
-    
+
     if token:
         print("✅ Found GitHub CLI token!")
         print(f"   Token: {token[:10]}...")
@@ -91,7 +88,7 @@ def main():
         print("   4. Copy the token and run:")
         print("      export GITHUB_TOKEN=your_token_here")
         print("      python scripts/local_setup.py")
-        
+
         # Check for manual token
         manual_token = os.getenv("GITHUB_TOKEN")
         if manual_token:
@@ -120,4 +117,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()

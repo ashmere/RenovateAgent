@@ -40,8 +40,9 @@ class PRProcessor:
         self.settings = settings
         self.dependency_fixer_factory = DependencyFixerFactory(settings)
 
-    async def process_pr_event(self, action: str, pr_data: Dict[str, Any],
-                              repo_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_pr_event(
+        self, action: str, pr_data: Dict[str, Any], repo_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Process a pull request event.
 
@@ -56,19 +57,39 @@ class PRProcessor:
         pr_number = pr_data.get("number")
         repo_name = repo_data.get("full_name")
 
-        logger.info("Processing PR event",
-                   action=action,
-                   pr_number=pr_number,
-                   repository=repo_name)
+        # Validate required data
+        if not isinstance(pr_number, int):
+            raise PRProcessingError(
+                f"Invalid PR number: {pr_number}",
+                pr_number=pr_number,
+                repo_name=repo_name,
+            )
+
+        if not isinstance(repo_name, str):
+            raise PRProcessingError(
+                f"Invalid repository name: {repo_name}",
+                pr_number=pr_number,
+                repo_name=repo_name,
+            )
+
+        logger.info(
+            "Processing PR event",
+            action=action,
+            pr_number=pr_number,
+            repository=repo_name,
+        )
 
         try:
             # Get repository and PR objects
             repo = await self.github_client.get_repo(repo_name)
-            
+
             # Check if repository should be processed
             if not self.github_client.should_process_repository(repo):
-                return {"message": "Repository not in allowlist or is archived", "action": "ignored"}
-            
+                return {
+                    "message": "Repository not in allowlist or is archived",
+                    "action": "ignored",
+                }
+
             pr = await self.github_client.get_pr(repo, pr_number)
 
             # Verify this is a Renovate PR
@@ -82,18 +103,25 @@ class PRProcessor:
                 return {"message": f"Action '{action}' not handled"}
 
         except Exception as e:
-            logger.error("Failed to process PR event",
-                        action=action,
-                        pr_number=pr_number,
-                        repository=repo_name,
-                        error=str(e))
-            raise PRProcessingError(f"Failed to process PR event: {e}",
-                                  pr_number=pr_number,
-                                  repo_name=repo_name)
+            logger.error(
+                "Failed to process PR event",
+                action=action,
+                pr_number=pr_number,
+                repository=repo_name,
+                error=str(e),
+            )
+            raise PRProcessingError(
+                f"Failed to process PR event: {e}",
+                pr_number=pr_number,
+                repo_name=repo_name,
+            )
 
-    async def process_check_suite_completion(self, check_suite: Dict[str, Any],
-                                           pr_data: Dict[str, Any],
-                                           repo_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_check_suite_completion(
+        self,
+        check_suite: Dict[str, Any],
+        pr_data: Dict[str, Any],
+        repo_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """
         Process check suite completion event.
 
@@ -108,19 +136,39 @@ class PRProcessor:
         pr_number = pr_data.get("number")
         repo_name = repo_data.get("full_name")
 
-        logger.info("Processing check suite completion",
-                   pr_number=pr_number,
-                   repository=repo_name,
-                   conclusion=check_suite.get("conclusion"))
+        # Validate required data
+        if not isinstance(pr_number, int):
+            raise PRProcessingError(
+                f"Invalid PR number: {pr_number}",
+                pr_number=pr_number,
+                repo_name=repo_name,
+            )
+
+        if not isinstance(repo_name, str):
+            raise PRProcessingError(
+                f"Invalid repository name: {repo_name}",
+                pr_number=pr_number,
+                repo_name=repo_name,
+            )
+
+        logger.info(
+            "Processing check suite completion",
+            pr_number=pr_number,
+            repository=repo_name,
+            conclusion=check_suite.get("conclusion"),
+        )
 
         try:
             # Get repository and PR objects
             repo = await self.github_client.get_repo(repo_name)
-            
+
             # Check if repository should be processed
             if not self.github_client.should_process_repository(repo):
-                return {"message": "Repository not in allowlist or is archived", "action": "ignored"}
-            
+                return {
+                    "message": "Repository not in allowlist or is archived",
+                    "action": "ignored",
+                }
+
             pr = await self.github_client.get_pr(repo, pr_number)
 
             # Verify this is a Renovate PR
@@ -131,16 +179,21 @@ class PRProcessor:
             return await self._process_pr_for_approval(repo, pr)
 
         except Exception as e:
-            logger.error("Failed to process check suite completion",
-                        pr_number=pr_number,
-                        repository=repo_name,
-                        error=str(e))
-            raise PRProcessingError(f"Failed to process check suite completion: {e}",
-                                  pr_number=pr_number,
-                                  repo_name=repo_name)
+            logger.error(
+                "Failed to process check suite completion",
+                pr_number=pr_number,
+                repository=repo_name,
+                error=str(e),
+            )
+            raise PRProcessingError(
+                f"Failed to process check suite completion: {e}",
+                pr_number=pr_number,
+                repo_name=repo_name,
+            )
 
-    async def _process_pr_for_approval(self, repo: Repository,
-                                     pr: PullRequest) -> Dict[str, Any]:
+    async def _process_pr_for_approval(
+        self, repo: Repository, pr: PullRequest
+    ) -> Dict[str, Any]:
         """
         Process a PR for potential approval.
 
@@ -151,10 +204,12 @@ class PRProcessor:
         Returns:
             Processing result
         """
-        logger.info("Analyzing PR for approval",
-                   pr_number=pr.number,
-                   repository=repo.full_name,
-                   title=pr.title)
+        logger.info(
+            "Analyzing PR for approval",
+            pr_number=pr.number,
+            repository=repo.full_name,
+            title=pr.title,
+        )
 
         # Check if PR is in mergeable state
         if pr.state != "open":
@@ -165,9 +220,9 @@ class PRProcessor:
 
         # Check if PR has merge conflicts
         if pr.mergeable is False:
-            logger.info("PR has merge conflicts",
-                       pr_number=pr.number,
-                       repository=repo.full_name)
+            logger.info(
+                "PR has merge conflicts", pr_number=pr.number, repository=repo.full_name
+            )
             return {"message": "PR has merge conflicts", "action": "blocked"}
 
         # Get and analyze checks
@@ -184,13 +239,13 @@ class PRProcessor:
                     return {
                         "message": "Dependencies fixed",
                         "action": "dependency_fix_applied",
-                        "details": fix_result
+                        "details": fix_result,
                     }
 
             return {
                 "message": "PR checks failed",
                 "action": "blocked",
-                "failed_checks": checks_result["failed_checks"]
+                "failed_checks": checks_result["failed_checks"],
             }
 
         if checks_result["status"] == "success":
@@ -199,13 +254,14 @@ class PRProcessor:
             return {
                 "message": "PR approved automatically",
                 "action": "approved",
-                "details": approval_result
+                "details": approval_result,
             }
 
         return {"message": "Unknown check status", "action": "ignored"}
 
-    async def _analyze_pr_checks(self, repo: Repository,
-                                pr: PullRequest) -> Dict[str, Any]:
+    async def _analyze_pr_checks(
+        self, repo: Repository, pr: PullRequest
+    ) -> Dict[str, Any]:
         """
         Analyze the status of PR checks.
 
@@ -222,9 +278,11 @@ class PRProcessor:
 
             if not check_runs:
                 # No checks defined, consider as passing
-                logger.info("No checks found for PR",
-                           pr_number=pr.number,
-                           repository=repo.full_name)
+                logger.info(
+                    "No checks found for PR",
+                    pr_number=pr.number,
+                    repository=repo.full_name,
+                )
                 return {"status": "success", "total_checks": 0}
 
             # Analyze check results
@@ -238,24 +296,25 @@ class PRProcessor:
                     if check.conclusion == "success":
                         passed_checks += 1
                     elif check.conclusion in ["failure", "cancelled", "timed_out"]:
-                        failed_checks.append({
-                            "name": check.name,
-                            "conclusion": check.conclusion,
-                            "details_url": check.details_url
-                        })
+                        failed_checks.append(
+                            {
+                                "name": check.name,
+                                "conclusion": check.conclusion,
+                                "details_url": check.details_url,
+                            }
+                        )
                 else:
-                    pending_checks.append({
-                        "name": check.name,
-                        "status": check.status
-                    })
+                    pending_checks.append({"name": check.name, "status": check.status})
 
-            logger.info("PR check analysis",
-                       pr_number=pr.number,
-                       repository=repo.full_name,
-                       total=total_checks,
-                       passed=passed_checks,
-                       failed=len(failed_checks),
-                       pending=len(pending_checks))
+            logger.info(
+                "PR check analysis",
+                pr_number=pr.number,
+                repository=repo.full_name,
+                total=total_checks,
+                passed=passed_checks,
+                failed=len(failed_checks),
+                pending=len(pending_checks),
+            )
 
             # Determine overall status
             if pending_checks:
@@ -263,7 +322,7 @@ class PRProcessor:
                     "status": "pending",
                     "total_checks": total_checks,
                     "passed_checks": passed_checks,
-                    "pending_checks": pending_checks
+                    "pending_checks": pending_checks,
                 }
 
             if failed_checks:
@@ -271,20 +330,22 @@ class PRProcessor:
                     "status": "failed",
                     "total_checks": total_checks,
                     "passed_checks": passed_checks,
-                    "failed_checks": failed_checks
+                    "failed_checks": failed_checks,
                 }
 
             return {
                 "status": "success",
                 "total_checks": total_checks,
-                "passed_checks": passed_checks
+                "passed_checks": passed_checks,
             }
 
         except Exception as e:
-            logger.error("Failed to analyze PR checks",
-                        pr_number=pr.number,
-                        repository=repo.full_name,
-                        error=str(e))
+            logger.error(
+                "Failed to analyze PR checks",
+                pr_number=pr.number,
+                repository=repo.full_name,
+                error=str(e),
+            )
             # In case of error, assume checks are pending
             return {"status": "pending", "error": str(e)}
 
@@ -313,26 +374,31 @@ class PRProcessor:
             success = await self.github_client.approve_pr(repo, pr.number, review_body)
 
             if success:
-                logger.info("PR approved successfully",
-                           pr_number=pr.number,
-                           repository=repo.full_name)
+                logger.info(
+                    "PR approved successfully",
+                    pr_number=pr.number,
+                    repository=repo.full_name,
+                )
                 return {
                     "success": True,
                     "timestamp": datetime.utcnow().isoformat(),
-                    "review_body": review_body
+                    "review_body": review_body,
                 }
             else:
                 return {"success": False, "error": "Failed to approve PR"}
 
         except Exception as e:
-            logger.error("Failed to approve PR",
-                        pr_number=pr.number,
-                        repository=repo.full_name,
-                        error=str(e))
+            logger.error(
+                "Failed to approve PR",
+                pr_number=pr.number,
+                repository=repo.full_name,
+                error=str(e),
+            )
             return {"success": False, "error": str(e)}
 
-    async def _attempt_dependency_fix(self, repo: Repository,
-                                    pr: PullRequest) -> Dict[str, Any]:
+    async def _attempt_dependency_fix(
+        self, repo: Repository, pr: PullRequest
+    ) -> Dict[str, Any]:
         """
         Attempt to fix dependency issues in a PR.
 
@@ -343,55 +409,58 @@ class PRProcessor:
         Returns:
             Fix result
         """
-        logger.info("Attempting dependency fix",
-                   pr_number=pr.number,
-                   repository=repo.full_name)
+        logger.info(
+            "Attempting dependency fix", pr_number=pr.number, repository=repo.full_name
+        )
 
         try:
             # Get appropriate dependency fixer
             fixer = await self.dependency_fixer_factory.get_fixer(repo)
 
             if not fixer:
-                return {
-                    "success": False,
-                    "error": "No suitable dependency fixer found"
-                }
+                return {"success": False, "error": "No suitable dependency fixer found"}
 
             # Attempt to fix dependencies
+            # First clone the repository to a temporary directory
+            # Note: This is a simplified approach - a full implementation would
+            # need to handle repository cloning and cleanup
+            from pathlib import Path
+
+            temp_repo_path = Path(f"/tmp/repo_{repo.name}")
+
             fix_result = await fixer.fix_dependencies(
-                repo_url=repo.clone_url,
-                branch=pr.head.ref,
-                pr_number=pr.number
+                repo_path=temp_repo_path, branch=pr.head.ref
             )
 
             if fix_result["success"]:
-                logger.info("Dependencies fixed successfully",
-                           pr_number=pr.number,
-                           repository=repo.full_name,
-                           fixer=fixer.__class__.__name__)
+                logger.info(
+                    "Dependencies fixed successfully",
+                    pr_number=pr.number,
+                    repository=repo.full_name,
+                    fixer=fixer.__class__.__name__,
+                )
 
                 return {
                     "success": True,
                     "fixer": fixer.__class__.__name__,
                     "changes": fix_result.get("changes", []),
-                    "commit_sha": fix_result.get("commit_sha")
+                    "commit_sha": fix_result.get("commit_sha"),
                 }
             else:
                 return {
                     "success": False,
                     "error": fix_result.get("error", "Unknown error"),
-                    "fixer": fixer.__class__.__name__
+                    "fixer": fixer.__class__.__name__,
                 }
 
         except Exception as e:
-            logger.error("Failed to fix dependencies",
-                        pr_number=pr.number,
-                        repository=repo.full_name,
-                        error=str(e))
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            logger.error(
+                "Failed to fix dependencies",
+                pr_number=pr.number,
+                repository=repo.full_name,
+                error=str(e),
+            )
+            return {"success": False, "error": str(e)}
 
     async def get_pr_status(self, repo_name: str, pr_number: int) -> Dict[str, Any]:
         """
@@ -421,14 +490,18 @@ class PRProcessor:
                 "is_renovate": await self.github_client.is_renovate_pr(pr),
                 "checks": checks_result,
                 "created_at": pr.created_at.isoformat(),
-                "updated_at": pr.updated_at.isoformat()
+                "updated_at": pr.updated_at.isoformat(),
             }
 
         except Exception as e:
-            logger.error("Failed to get PR status",
-                        repository=repo_name,
-                        pr_number=pr_number,
-                        error=str(e))
-            raise PRProcessingError(f"Failed to get PR status: {e}",
-                                  pr_number=pr_number,
-                                  repo_name=repo_name)
+            logger.error(
+                "Failed to get PR status",
+                repository=repo_name,
+                pr_number=pr_number,
+                error=str(e),
+            )
+            raise PRProcessingError(
+                f"Failed to get PR status: {e}",
+                pr_number=pr_number,
+                repo_name=repo_name,
+            )

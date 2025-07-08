@@ -29,18 +29,13 @@ class WebhookListener:
     and routes events to appropriate processors.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the webhook listener."""
         self.router = APIRouter()
         self._setup_routes()
-        self.supported_events = {
-            "pull_request",
-            "check_suite",
-            "issues",
-            "push"
-        }
+        self.supported_events = {"pull_request", "check_suite", "issues", "push"}
 
-    def _setup_routes(self):
+    def _setup_routes(self) -> None:
         """Set up webhook routes."""
         self.router.post("/github")(self.handle_github_webhook)
         self.router.get("/github")(self.webhook_info)
@@ -58,18 +53,20 @@ class WebhookListener:
         """
         # Skip signature validation in development mode
         from .config import get_settings
+
         current_settings = get_settings()
-        if hasattr(current_settings, 'is_development_mode') and current_settings.is_development_mode:
+        if (
+            hasattr(current_settings, "is_development_mode")
+            and current_settings.is_development_mode
+        ):
             logger.info("Development mode: skipping webhook signature validation")
             return True
-            
+
         if not signature:
             return False
 
         expected_signature = hmac.new(
-            settings.github_webhook_secret.encode('utf-8'),
-            payload,
-            hashlib.sha256
+            settings.github_webhook_secret.encode("utf-8"), payload, hashlib.sha256
         ).hexdigest()
 
         expected_signature = f"sha256={expected_signature}"
@@ -79,6 +76,7 @@ class WebhookListener:
     def _get_pr_processor(self) -> PRProcessor:
         """Get PR processor instance."""
         from .config import get_settings
+
         current_settings = get_settings()
         github_client = GitHubClient(current_settings)
         return PRProcessor(github_client, current_settings)
@@ -89,7 +87,7 @@ class WebhookListener:
         x_github_event: Optional[str] = Header(None, alias="X-GitHub-Event"),
         x_hub_signature_256: Optional[str] = Header(None, alias="X-Hub-Signature-256"),
         x_github_delivery: Optional[str] = Header(None, alias="X-GitHub-Delivery"),
-        user_agent: Optional[str] = Header(None, alias="User-Agent")
+        user_agent: Optional[str] = Header(None, alias="User-Agent"),
     ) -> JSONResponse:
         """
         Handle incoming GitHub webhook events.
@@ -108,36 +106,42 @@ class WebhookListener:
         payload = await request.body()
 
         # Validate signature
-        if not self._validate_signature(payload, x_hub_signature_256):
-            logger.error("Invalid webhook signature",
-                        event_type=x_github_event,
-                        delivery_id=x_github_delivery)
+        if not x_hub_signature_256 or not self._validate_signature(
+            payload, x_hub_signature_256
+        ):
+            logger.error(
+                "Invalid webhook signature",
+                github_event=x_github_event,
+                delivery_id=x_github_delivery,
+            )
             raise HTTPException(status_code=401, detail="Invalid signature")
 
         # Parse JSON payload
         try:
-            data = json.loads(payload.decode('utf-8'))
+            data = json.loads(payload.decode("utf-8"))
         except json.JSONDecodeError as e:
-            logger.error("Invalid JSON payload",
-                        event_type=x_github_event,
-                        delivery_id=x_github_delivery,
-                        error=str(e))
+            logger.error(
+                "Invalid JSON payload",
+                github_event=x_github_event,
+                delivery_id=x_github_delivery,
+                error=str(e),
+            )
             raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
         # Log webhook event
-        logger.info("Received GitHub webhook",
-                   event_type=x_github_event,
-                   action=data.get("action"),
-                   delivery_id=x_github_delivery,
-                   repository=data.get("repository", {}).get("full_name"))
+        logger.info(
+            "Received GitHub webhook",
+            github_event=x_github_event,
+            action=data.get("action"),
+            delivery_id=x_github_delivery,
+            repository=data.get("repository", {}).get("full_name"),
+        )
 
         # Check if event is supported
         if x_github_event not in self.supported_events:
-            logger.info("Unsupported event type, ignoring",
-                       event_type=x_github_event)
+            logger.info("Unsupported event type, ignoring", github_event=x_github_event)
             return JSONResponse(
-                content={"message": "Event not supported"},
-                status_code=200
+                content={"message": "Event not supported"}, status_code=200
             )
 
         # Process event
@@ -145,28 +149,26 @@ class WebhookListener:
             result = await self._process_event(x_github_event, data)
 
             return JSONResponse(
-                content={
-                    "message": "Event processed successfully",
-                    "result": result
-                },
-                status_code=200
+                content={"message": "Event processed successfully", "result": result},
+                status_code=200,
             )
 
         except Exception as e:
-            logger.error("Failed to process webhook event",
-                        event_type=x_github_event,
-                        delivery_id=x_github_delivery,
-                        error=str(e))
-
-            return JSONResponse(
-                content={
-                    "message": "Failed to process event",
-                    "error": str(e)
-                },
-                status_code=500
+            logger.error(
+                "Failed to process webhook event",
+                github_event=x_github_event,
+                delivery_id=x_github_delivery,
+                error=str(e),
             )
 
-    async def _process_event(self, event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
+            return JSONResponse(
+                content={"message": "Failed to process event", "error": str(e)},
+                status_code=500,
+            )
+
+    async def _process_event(
+        self, event_type: str, data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Process a GitHub webhook event.
 
@@ -256,10 +258,7 @@ class WebhookListener:
             )
             results.append(result)
 
-        return {
-            "message": "Check suite processed",
-            "results": results
-        }
+        return {"message": "Check suite processed", "results": results}
 
     async def _process_issues_event(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -281,10 +280,12 @@ class WebhookListener:
             return {"message": "Issue not a dashboard issue"}
 
         # Log issue event
-        logger.info("Dashboard issue event",
-                   action=action,
-                   issue_number=issue_data.get("number"),
-                   repository=repo_data.get("full_name"))
+        logger.info(
+            "Dashboard issue event",
+            action=action,
+            issue_number=issue_data.get("number"),
+            repository=repo_data.get("full_name"),
+        )
 
         return {"message": "Dashboard issue event logged"}
 
@@ -305,9 +306,11 @@ class WebhookListener:
         if ref != "refs/heads/main":
             return {"message": "Push not to main branch"}
 
-        logger.info("Main branch push event",
-                   repository=repo_data.get("full_name"),
-                   commits=len(data.get("commits", [])))
+        logger.info(
+            "Main branch push event",
+            repository=repo_data.get("full_name"),
+            commits=len(data.get("commits", [])),
+        )
 
         return {"message": "Push event logged"}
 
@@ -322,6 +325,6 @@ class WebhookListener:
             content={
                 "message": "GitHub Webhook Listener",
                 "supported_events": list(self.supported_events),
-                "version": "0.1.0"
+                "version": "0.1.0",
             }
         )

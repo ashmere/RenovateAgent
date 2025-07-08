@@ -1,6 +1,6 @@
 # Renovate PR Assistant - Developer Guide
 
-**Last Updated:** 2025-07-08  
+**Last Updated:** 2025-07-08
 **Version:** 0.1.0
 
 ## Overview
@@ -149,7 +149,7 @@ import structlog
 
 logger = structlog.get_logger()
 
-logger.info("Processing PR", 
+logger.info("Processing PR",
             pr_number=pr.number,
             repository=pr.base.repo.full_name,
             author=pr.user.login)
@@ -182,13 +182,13 @@ async def handle_github_webhook(
 ):
     # Validate signature
     await validate_webhook_signature(request, github_signature)
-    
+
     # Parse payload
     payload = await request.json()
-    
+
     # Process event
     await process_event(github_event, payload)
-    
+
     return {"status": "processed"}
 ```
 
@@ -219,11 +219,11 @@ class DependencyFixer:
     async def can_fix(self, repo_path: str) -> bool:
         """Check if this fixer can handle the repository."""
         pass
-    
+
     async def fix_dependencies(self, repo_path: str, branch: str) -> bool:
         """Fix dependencies and return success status."""
         pass
-    
+
     async def get_lock_files(self) -> List[str]:
         """Get list of lock files this fixer handles."""
         pass
@@ -240,13 +240,13 @@ from pathlib import Path
 async def fix_repository_dependencies(repo_url: str, branch: str):
     with tempfile.TemporaryDirectory() as temp_dir:
         repo_path = Path(temp_dir) / "repo"
-        
+
         # Clone repository
         await clone_repository(repo_url, repo_path, branch)
-        
+
         # Fix dependencies
         success = await fix_dependencies(repo_path)
-        
+
         if success:
             # Commit and push changes
             await commit_and_push(repo_path, branch)
@@ -267,11 +267,11 @@ async def test_pr_approval():
     # Mock GitHub client
     github_client = AsyncMock()
     github_client.get_pr_checks.return_value = [{"state": "success"}]
-    
+
     # Test PR processor
     pr_processor = PRProcessor(github_client, settings)
     result = await pr_processor.process_pr(pr_data)
-    
+
     assert result["action"] == "approved"
     github_client.approve_pr.assert_called_once()
 ```
@@ -285,13 +285,13 @@ Test complete workflows:
 async def test_dependency_fixing_workflow():
     # Create test repository
     test_repo = await create_test_repository()
-    
+
     # Create failing PR
     pr = await create_renovate_pr(test_repo)
-    
+
     # Process PR
     result = await process_pr_webhook(pr)
-    
+
     # Verify fix was applied
     assert result["dependencies_fixed"] is True
     assert_lock_file_updated(test_repo)
@@ -386,7 +386,7 @@ def validate_webhook_signature(payload: bytes, signature: str, secret: str) -> b
         payload,
         hashlib.sha256
     ).hexdigest()
-    
+
     return hmac.compare_digest(f"sha256={expected_signature}", signature)
 ```
 
@@ -412,7 +412,7 @@ async def rate_limit_middleware(request: Request, call_next):
             status_code=429,
             content={"error": "Rate limit exceeded"}
         )
-    
+
     response = await call_next(request)
     return response
 ```

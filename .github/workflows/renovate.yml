@@ -1,0 +1,59 @@
+name: Renovate
+
+on:
+  # Run weekly on Mondays at 9:00 AM UTC
+  schedule:
+    - cron: '0 9 * * 1'
+
+  # Allow manual trigger with options
+  workflow_dispatch:
+    inputs:
+      repoCache:
+        description: "Reset or disable the cache?"
+        type: choice
+        default: enabled
+        options:
+          - enabled
+          - disabled
+          - reset
+      logLevel:
+        description: "Override default log level"
+        required: false
+        default: "info"
+        type: string
+      overrideSchedule:
+        description: "Override all schedules"
+        required: false
+        default: "false"
+        type: string
+      dryRun:
+        description: "Override default dryRun setting - extract, lookup, full, null"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Self-hosted Renovate
+        uses: renovatebot/github-action@v40.3.2
+        with:
+          configurationFile: .github/renovate.json5
+          token: ${{ secrets.RENOVATE_TOKEN }}
+        env:
+          # Repository cache control
+          RENOVATE_REPOSITORY_CACHE: ${{ github.event.inputs.repoCache || 'enabled' }}
+          # Override schedule if set
+          RENOVATE_FORCE: ${{ github.event.inputs.overrideSchedule == 'true' && '{''schedule'':null}' || '' }}
+          # Log level control
+          LOG_LEVEL: ${{ github.event.inputs.logLevel || 'info' }}
+          # Dry run control
+          RENOVATE_DRY_RUN: ${{ github.event.inputs.dryRun || '' }}

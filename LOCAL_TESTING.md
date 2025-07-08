@@ -42,7 +42,7 @@ If you don't have GitHub CLI:
    ```bash
    python scripts/test_github_connection.py
    python scripts/test_target_repos.py      # Test repository access
-   python scripts/test_webhook.py           # Test webhook processing  
+   python scripts/test_webhook.py           # Test webhook processing
    python -m renovate_agent.main
    ```
 
@@ -51,18 +51,18 @@ If you don't have GitHub CLI:
 Once running, you'll have:
 
 - **Webhook endpoint:** `http://localhost:8000/webhooks/github`
-- **Health check:** `http://localhost:8000/health`  
+- **Health check:** `http://localhost:8000/health`
 - **API docs:** `http://localhost:8000/docs`
 
 ## Testing GitHub Integration
 
 The local setup allows you to:
 
-✅ **Connect to real GitHub API** using your token  
-✅ **Test repository access** for your organizations  
-✅ **Test PR processing logic** with real PR data  
-✅ **Test dependency fixing** on real repositories  
-✅ **Debug webhook processing** with real GitHub events  
+✅ **Connect to real GitHub API** using your token
+✅ **Test repository access** for your organizations
+✅ **Test PR processing logic** with real PR data
+✅ **Test dependency fixing** on real repositories
+✅ **Debug webhook processing** with real GitHub events
 
 ## Simulating GitHub Webhooks
 
@@ -134,7 +134,7 @@ SUPPORTED_LANGUAGES=python,typescript,go
 - Verify the token isn't expired
 - Make sure `GITHUB_PERSONAL_ACCESS_TOKEN` is set
 
-### "Organization not found"  
+### "Organization not found"
 - Use your GitHub username instead of organization name
 - Check you have access to the organization
 
@@ -153,7 +153,7 @@ SUPPORTED_LANGUAGES=python,typescript,go
 Once local testing works:
 
 1. **Deploy to production** with proper GitHub App setup
-2. **Configure real webhooks** pointing to your deployed instance  
+2. **Configure real webhooks** pointing to your deployed instance
 3. **Set up monitoring** and logging for production use
 
 ## Differences from Production
@@ -163,4 +163,4 @@ Local testing mode:
 - ✅ Full GitHub API access for testing
 - ❌ No webhook signature validation
 - ❌ Limited rate limits vs GitHub App
-- ❌ No fine-grained permissions 
+- ❌ No fine-grained permissions

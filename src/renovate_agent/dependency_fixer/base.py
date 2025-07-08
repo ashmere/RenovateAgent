@@ -82,7 +82,9 @@ class DependencyFixer(ABC):
         """
         pass
 
-    async def clone_repository(self, repo_url: str, repo_path: Path, branch: str) -> bool:
+    async def clone_repository(
+        self, repo_url: str, repo_path: Path, branch: str
+    ) -> bool:
         """
         Clone a repository.
 
@@ -96,48 +98,54 @@ class DependencyFixer(ABC):
         """
         try:
             cmd = [
-                "git", "clone",
+                "git",
+                "clone",
                 "--single-branch",
-                "--branch", branch,
+                "--branch",
+                branch,
                 repo_url,
-                str(repo_path)
+                str(repo_path),
             ]
 
-            logger.info("Cloning repository",
-                       repo_url=repo_url,
-                       branch=branch,
-                       path=str(repo_path))
-
-            result = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+            logger.info(
+                "Cloning repository",
+                repo_url=repo_url,
+                branch=branch,
+                path=str(repo_path),
             )
 
-            stdout, stderr = await asyncio.wait_for(result.communicate(), timeout=self.timeout)
+            result = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+
+            stdout, stderr = await asyncio.wait_for(
+                result.communicate(), timeout=self.timeout
+            )
 
             if result.returncode != 0:
-                logger.error("Failed to clone repository",
-                           repo_url=repo_url,
-                           branch=branch,
-                           error=stderr.decode('utf-8'))
+                logger.error(
+                    "Failed to clone repository",
+                    repo_url=repo_url,
+                    branch=branch,
+                    error=stderr.decode("utf-8"),
+                )
                 return False
 
-            logger.info("Repository cloned successfully",
-                       repo_url=repo_url,
-                       branch=branch)
+            logger.info(
+                "Repository cloned successfully", repo_url=repo_url, branch=branch
+            )
             return True
 
         except asyncio.TimeoutError:
-            logger.error("Repository clone timeout",
-                        repo_url=repo_url,
-                        branch=branch)
+            logger.error("Repository clone timeout", repo_url=repo_url, branch=branch)
             return False
         except Exception as e:
-            logger.error("Failed to clone repository",
-                        repo_url=repo_url,
-                        branch=branch,
-                        error=str(e))
+            logger.error(
+                "Failed to clone repository",
+                repo_url=repo_url,
+                branch=branch,
+                error=str(e),
+            )
             return False
 
     async def run_command(self, cmd: List[str], cwd: Path) -> Dict[str, Any]:
@@ -152,47 +160,42 @@ class DependencyFixer(ABC):
             Command result
         """
         try:
-            logger.info("Running command",
-                       command=" ".join(cmd),
-                       cwd=str(cwd))
+            logger.info("Running command", command=" ".join(cmd), cwd=str(cwd))
 
             result = await asyncio.create_subprocess_exec(
                 *cmd,
                 cwd=str(cwd),
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
 
-            stdout, stderr = await asyncio.wait_for(result.communicate(), timeout=self.timeout)
+            stdout, stderr = await asyncio.wait_for(
+                result.communicate(), timeout=self.timeout
+            )
 
             return {
                 "returncode": result.returncode,
-                "stdout": stdout.decode('utf-8'),
-                "stderr": stderr.decode('utf-8'),
-                "success": result.returncode == 0
+                "stdout": stdout.decode("utf-8"),
+                "stderr": stderr.decode("utf-8"),
+                "success": result.returncode == 0,
             }
 
         except asyncio.TimeoutError:
-            logger.error("Command timeout",
-                        command=" ".join(cmd),
-                        cwd=str(cwd))
+            logger.error("Command timeout", command=" ".join(cmd), cwd=str(cwd))
             return {
                 "returncode": -1,
                 "stdout": "",
                 "stderr": "Command timeout",
-                "success": False
+                "success": False,
             }
         except Exception as e:
-            logger.error("Failed to run command",
-                        command=" ".join(cmd),
-                        cwd=str(cwd),
-                        error=str(e))
-            return {
-                "returncode": -1,
-                "stdout": "",
-                "stderr": str(e),
-                "success": False
-            }
+            logger.error(
+                "Failed to run command",
+                command=" ".join(cmd),
+                cwd=str(cwd),
+                error=str(e),
+            )
+            return {"returncode": -1, "stdout": "", "stderr": str(e), "success": False}
 
     async def check_file_exists(self, file_path: Path) -> bool:
         """
@@ -221,15 +224,17 @@ class DependencyFixer(ABC):
             result = await self.run_command(cmd, repo_path)
 
             if result["success"]:
-                changed_files = [f.strip() for f in result["stdout"].split('\n') if f.strip()]
+                changed_files = [
+                    f.strip() for f in result["stdout"].split("\n") if f.strip()
+                ]
                 return changed_files
             else:
                 return []
 
         except Exception as e:
-            logger.error("Failed to get changed files",
-                        repo_path=str(repo_path),
-                        error=str(e))
+            logger.error(
+                "Failed to get changed files", repo_path=str(repo_path), error=str(e)
+            )
             return []
 
     async def commit_changes(self, repo_path: Path, message: str) -> Dict[str, Any]:
@@ -246,12 +251,11 @@ class DependencyFixer(ABC):
         try:
             # Configure git user (required for commits)
             await self.run_command(
-                ["git", "config", "user.name", "Renovate PR Assistant"],
-                repo_path
+                ["git", "config", "user.name", "Renovate PR Assistant"], repo_path
             )
             await self.run_command(
                 ["git", "config", "user.email", "ai-code-assistant@example.com"],
-                repo_path
+                repo_path,
             )
 
             # Add all changes
@@ -261,8 +265,7 @@ class DependencyFixer(ABC):
 
             # Check if there are any changes to commit
             status_result = await self.run_command(
-                ["git", "status", "--porcelain"],
-                repo_path
+                ["git", "status", "--porcelain"], repo_path
             )
 
             if not status_result["stdout"].strip():
@@ -270,34 +273,27 @@ class DependencyFixer(ABC):
 
             # Commit changes
             commit_result = await self.run_command(
-                ["git", "commit", "-m", message],
-                repo_path
+                ["git", "commit", "-m", message], repo_path
             )
 
             if commit_result["success"]:
                 # Get commit SHA
                 sha_result = await self.run_command(
-                    ["git", "rev-parse", "HEAD"],
-                    repo_path
+                    ["git", "rev-parse", "HEAD"], repo_path
                 )
 
-                commit_sha = sha_result["stdout"].strip() if sha_result["success"] else None
+                commit_sha = (
+                    sha_result["stdout"].strip() if sha_result["success"] else None
+                )
 
-                return {
-                    "success": True,
-                    "commit_sha": commit_sha,
-                    "message": message
-                }
+                return {"success": True, "commit_sha": commit_sha, "message": message}
             else:
-                return {
-                    "success": False,
-                    "error": commit_result["stderr"]
-                }
+                return {"success": False, "error": commit_result["stderr"]}
 
         except Exception as e:
-            logger.error("Failed to commit changes",
-                        repo_path=str(repo_path),
-                        error=str(e))
+            logger.error(
+                "Failed to commit changes", repo_path=str(repo_path), error=str(e)
+            )
             return {"success": False, "error": str(e)}
 
     async def push_changes(self, repo_path: Path, branch: str) -> Dict[str, Any]:
@@ -316,22 +312,28 @@ class DependencyFixer(ABC):
             result = await self.run_command(cmd, repo_path)
 
             if result["success"]:
-                logger.info("Changes pushed successfully",
-                           repo_path=str(repo_path),
-                           branch=branch)
+                logger.info(
+                    "Changes pushed successfully",
+                    repo_path=str(repo_path),
+                    branch=branch,
+                )
                 return {"success": True}
             else:
-                logger.error("Failed to push changes",
-                           repo_path=str(repo_path),
-                           branch=branch,
-                           error=result["stderr"])
+                logger.error(
+                    "Failed to push changes",
+                    repo_path=str(repo_path),
+                    branch=branch,
+                    error=result["stderr"],
+                )
                 return {"success": False, "error": result["stderr"]}
 
         except Exception as e:
-            logger.error("Failed to push changes",
-                        repo_path=str(repo_path),
-                        branch=branch,
-                        error=str(e))
+            logger.error(
+                "Failed to push changes",
+                repo_path=str(repo_path),
+                branch=branch,
+                error=str(e),
+            )
             return {"success": False, "error": str(e)}
 
     async def cleanup_repo(self, repo_path: Path) -> None:
@@ -346,12 +348,13 @@ class DependencyFixer(ABC):
                 shutil.rmtree(repo_path)
                 logger.info("Repository cleaned up", path=str(repo_path))
         except Exception as e:
-            logger.error("Failed to cleanup repository",
-                        path=str(repo_path),
-                        error=str(e))
+            logger.error(
+                "Failed to cleanup repository", path=str(repo_path), error=str(e)
+            )
 
-    async def fix_dependencies_workflow(self, repo_url: str, branch: str,
-                                      pr_number: int) -> Dict[str, Any]:
+    async def fix_dependencies_workflow(
+        self, repo_url: str, branch: str, pr_number: int
+    ) -> Dict[str, Any]:
         """
         Complete dependency fixing workflow.
 
@@ -413,15 +416,17 @@ class DependencyFixer(ABC):
                     "success": True,
                     "changes": changed_files,
                     "commit_sha": commit_result.get("commit_sha"),
-                    "message": "Dependencies fixed successfully"
+                    "message": "Dependencies fixed successfully",
                 }
 
         except Exception as e:
-            logger.error("Dependency fixing workflow failed",
-                        repo_url=repo_url,
-                        branch=branch,
-                        pr_number=pr_number,
-                        error=str(e))
+            logger.error(
+                "Dependency fixing workflow failed",
+                repo_url=repo_url,
+                branch=branch,
+                pr_number=pr_number,
+                error=str(e),
+            )
             return {"success": False, "error": str(e)}
 
         finally:

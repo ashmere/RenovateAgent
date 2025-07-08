@@ -5,7 +5,7 @@ This module handles environment variables, settings validation, and configuratio
 management using Pydantic Settings for type safety and validation.
 """
 
-from typing import List, Union
+from typing import Any, List, Union
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -69,8 +69,6 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
-        env_parse_none_str=None,
-        env_parse_enums=False,
     )
 
     # GitHub configuration
@@ -155,7 +153,7 @@ class Settings(BaseSettings):
 
     @field_validator("supported_languages", mode="before")
     @classmethod
-    def parse_supported_languages(cls, v):
+    def parse_supported_languages(cls, v: Any) -> List[str]:
         """Parse supported languages from comma-separated string or list."""
         if isinstance(v, str):
             # Handle comma-separated string format
@@ -171,7 +169,7 @@ class Settings(BaseSettings):
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
-    def parse_allowed_origins(cls, v):
+    def parse_allowed_origins(cls, v: Any) -> List[str]:
         """Parse allowed origins from comma-separated string or list."""
         if isinstance(v, str):
             # Handle comma-separated string format
@@ -185,7 +183,7 @@ class Settings(BaseSettings):
 
     @field_validator("github_repository_allowlist", mode="before")
     @classmethod
-    def parse_repository_allowlist(cls, v):
+    def parse_repository_allowlist(cls, v: Any) -> List[str]:
         """Parse repository allowlist from comma-separated string or list."""
         if isinstance(v, str):
             if not v.strip():
@@ -202,7 +200,7 @@ class Settings(BaseSettings):
 
     @field_validator("github_test_repositories", mode="before")
     @classmethod
-    def parse_test_repositories(cls, v):
+    def parse_test_repositories(cls, v: Any) -> List[str]:
         """Parse test repositories from comma-separated string or list."""
         if isinstance(v, str):
             if not v.strip():
@@ -218,7 +216,7 @@ class Settings(BaseSettings):
 
     @field_validator("supported_languages")
     @classmethod
-    def validate_supported_languages(cls, v):
+    def validate_supported_languages(cls, v: List[str]) -> List[str]:
         """Validate supported languages list."""
         allowed_languages = {"python", "typescript", "javascript", "go"}
         for lang in v:
@@ -228,7 +226,7 @@ class Settings(BaseSettings):
 
     @field_validator("log_level")
     @classmethod
-    def validate_log_level(cls, v):
+    def validate_log_level(cls, v: str) -> str:
         """Validate log level."""
         allowed_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if v.upper() not in allowed_levels:
@@ -262,9 +260,15 @@ class Settings(BaseSettings):
     @property
     def dependency_fixer_config(self) -> DependencyFixerConfig:
         """Get dependency fixer configuration."""
+        # Ensure supported_languages is always a list
+        supported_langs = self.supported_languages
+        if isinstance(supported_langs, str):
+            supported_langs = [
+                lang.strip() for lang in supported_langs.split(",") if lang.strip()
+            ]
         return DependencyFixerConfig(
             enabled=self.enable_dependency_fixing,
-            supported_languages=self.supported_languages,
+            supported_languages=supported_langs,
             clone_timeout=self.clone_timeout,
             update_timeout=self.dependency_update_timeout,
         )
@@ -303,7 +307,12 @@ class Settings(BaseSettings):
 
     def get_test_repositories(self) -> List[str]:
         """Get list of test repositories."""
-        return self.github_test_repositories
+        test_repos = self.github_test_repositories
+        if isinstance(test_repos, str):
+            if not test_repos.strip():
+                return []
+            return [repo.strip() for repo in test_repos.split(",") if repo.strip()]
+        return test_repos
 
 
 # Global settings instance - initialized lazily to avoid import-time errors
@@ -314,12 +323,21 @@ def get_settings() -> Settings:
     """Get the global settings instance, creating it if necessary."""
     global _settings_instance
     if _settings_instance is None:
-        _settings_instance = Settings()
+        try:
+            _settings_instance = Settings()
+        except ValueError as e:
+            # If github_organization is not provided, raise a more helpful error
+            if "github_organization" in str(e):
+                raise ValueError(
+                    "GITHUB_ORGANIZATION environment variable is required. "
+                    "Please set it to your GitHub organization name."
+                ) from e
+            raise
     return _settings_instance
 
 
 # For backward compatibility
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     """Allow module-level access to settings attributes."""
     if name == "settings":
         return get_settings()

@@ -1,0 +1,233 @@
+name: Pre-merge Checks
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main, develop ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: |
+          poetry install --no-interaction --no-root
+          # Install package in development mode
+          poetry install --no-interaction
+
+      - name: Run pre-commit hooks
+        run: |
+          poetry run pre-commit run --all-files
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: |
+          poetry install --no-interaction --no-root
+          poetry install --no-interaction
+
+      - name: Check if tests exist
+        id: check-tests
+        run: |
+          if [ -d "tests" ] && [ "$(find tests -name '*.py' -type f | wc -l)" -gt 0 ]; then
+            echo "tests_exist=true" >> $GITHUB_OUTPUT
+            echo "✅ Test directory found with Python files"
+          else
+            echo "tests_exist=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No tests directory or test files found"
+          fi
+
+      - name: Run unit tests (no external dependencies)
+        if: steps.check-tests.outputs.tests_exist == 'true'
+        run: |
+          # Run tests that don't require model downloads or external APIs
+          # Using markers to exclude tests that need external dependencies
+          poetry run pytest \
+            -v \
+            --tb=short \
+            -m "not requires_model and not requires_api and not slow" \
+            --maxfail=5 \
+            --disable-warnings \
+            tests/
+
+      - name: Run basic import tests
+        run: |
+          # Test that core modules can be imported without downloading models
+          poetry run python -c "
+          import sys
+          sys.path.insert(0, 'src')
+
+          # Test basic imports
+          try:
+              from docgenai import config
+              print('✅ Config module imported successfully')
+          except Exception as e:
+              print(f'❌ Config import failed: {e}')
+              sys.exit(1)
+
+          try:
+              from docgenai import cli
+              print('✅ CLI module imported successfully')
+          except Exception as e:
+              print(f'❌ CLI import failed: {e}')
+              sys.exit(1)
+
+          try:
+              from docgenai import file_selector
+              print('✅ File selector module imported successfully')
+          except Exception as e:
+              print(f'❌ File selector import failed: {e}')
+              sys.exit(1)
+
+          try:
+              from docgenai.chaining import chain, step
+              print('✅ Chaining modules imported successfully')
+          except Exception as e:
+              print(f'❌ Chaining import failed: {e}')
+              sys.exit(1)
+
+          print('✅ All basic imports successful')
+          "
+
+      - name: Test configuration loading
+        run: |
+          # Test that configuration can be loaded without errors
+          poetry run python -c "
+          import sys
+          sys.path.insert(0, 'src')
+
+          from docgenai.config import load_config
+
+          try:
+              config = load_config()
+              print('✅ Configuration loaded successfully')
+              print(f'   Model config: {config.get(\"model\", {}).get(\"mlx_model\", \"Not found\")}')
+              print(f'   Cache enabled: {config.get(\"cache\", {}).get(\"enabled\", False)}')
+          except Exception as e:
+              print(f'❌ Configuration loading failed: {e}')
+              sys.exit(1)
+          "
+
+      - name: Test CLI help (no model loading)
+        run: |
+          # Test that CLI help works without loading models
+          poetry run docgenai --help
+
+      - name: Validate project structure
+        run: |
+          # Check that required files and directories exist
+          echo "🔍 Validating project structure..."
+
+          required_files=(
+            "pyproject.toml"
+            "config.yaml"
+            "src/docgenai/__init__.py"
+            "src/docgenai/cli.py"
+            "src/docgenai/config.py"
+            "src/docgenai/core.py"
+          )
+
+          for file in "${required_files[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✅ $file exists"
+            else
+              echo "❌ $file missing"
+              exit 1
+            fi
+          done
+
+          echo "✅ Project structure validation passed"
+
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+
+      - name: Check for security vulnerabilities
+        run: |
+          # Install safety for security checks
+          pip install safety
+
+          # Export requirements and check for vulnerabilities
+          poetry export -f requirements.txt --output requirements.txt --without-hashes
+          safety check -r requirements.txt --json || true
+
+          # Clean up
+          rm requirements.txt
+
+      - name: Run bandit security linter
+        run: |
+          # Install bandit
+          pip install bandit
+
+          # Run security checks on source code
+          bandit -r src/ -f json || true

@@ -92,7 +92,7 @@ graph TD
    # For production with GitHub App
    renovate-agent
    # Or: uvicorn renovate_agent.main:app --reload
-   
+
    # For local development with Personal Access Token
    # See LOCAL_TESTING.md for simplified setup
    python -m renovate_agent.main
