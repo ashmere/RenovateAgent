@@ -547,30 +547,44 @@ class GitHubClient:
         pr_body = (pr.body or "").lower()
         branch_name = pr.head.ref.lower()
 
-        # Check for Renovate indicators
-        renovate_indicators = [
-            # User login patterns
-            "renovate" in user_login,
-            user_login.startswith("renovate"),
-            user_login.endswith("[bot]") and "renovate" in user_login,
-            # Title patterns
-            "update dependency" in pr_title,
+        # Check for strong Renovate indicators
+        strong_renovate_indicators = [
+            # Branch patterns (most reliable for PAT-based Renovate)
+            branch_name.startswith("renovate/"),
+            # Title patterns (conventional commit style from Renovate)
             "chore(deps)" in pr_title,
             "fix(deps)" in pr_title,
-            "renovate" in pr_title,
-            # Branch patterns
-            branch_name.startswith("renovate/"),
-            "renovate" in branch_name,
-            # Body patterns
-            "renovate" in pr_body,
+            # Body patterns (Renovate-specific content)
             "this pr contains the following updates" in pr_body,
+            "renovate bot" in pr_body,
+            # User login patterns (traditional bot)
+            user_login.startswith("renovate"),
+            user_login.endswith("[bot]") and "renovate" in user_login,
         ]
 
-        # Must be a bot and have at least one Renovate indicator
-        is_bot = pr.user.type == "Bot"
-        has_renovate_indicator = any(renovate_indicators)
+        # Check for weaker indicators that need multiple matches
+        weak_renovate_indicators = [
+            "update dependency" in pr_title,
+            "renovate" in pr_title,
+            "renovate" in pr_body,
+            "dependency" in pr_title
+            and ("update" in pr_title or "upgrade" in pr_title),
+        ]
 
-        return is_bot and has_renovate_indicator
+        # Traditional bot check
+        is_bot = pr.user.type == "Bot"
+        has_strong_indicator = any(strong_renovate_indicators)
+        has_multiple_weak_indicators = sum(weak_renovate_indicators) >= 2
+
+        # For traditional Renovate bot: must be bot with any indicator
+        if is_bot and (has_strong_indicator or any(weak_renovate_indicators)):
+            return True
+
+        # For PAT-based Renovate: must have strong indicators OR multiple weak indicators
+        if has_strong_indicator or has_multiple_weak_indicators:
+            return True
+
+        return False
 
     async def get_rate_limit_info(self) -> Dict[str, Any]:
         """

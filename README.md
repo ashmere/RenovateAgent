@@ -1,7 +1,7 @@
 # Renovate PR Assistant
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.1.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.2.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue.svg" alt="Python Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
@@ -142,6 +142,9 @@ HOST=0.0.0.0
 PORT=8000
 DEBUG=false
 
+# Dashboard Configuration
+DASHBOARD_CREATION_MODE=renovate-only  # Options: test, any, none, renovate-only
+
 # Dependency Fixing
 ENABLE_DEPENDENCY_FIXING=true
 SUPPORTED_LANGUAGES=python,typescript,go
@@ -152,7 +155,7 @@ DEPENDENCY_UPDATE_TIMEOUT=600
 ## 🔍 How It Works
 
 ### 1. PR Detection
-The system listens for GitHub webhook events and identifies new Renovate PRs automatically.
+The system listens for GitHub webhook events and identifies new Renovate PRs automatically. Supports both traditional Renovate bot PRs and Renovate instances running under personal access tokens (PAT).
 
 ### 2. Status Verification
 For each PR, it checks:
@@ -180,6 +183,12 @@ Maintains a real-time dashboard showing:
 - Recently processed PRs
 - Blocked PRs requiring attention
 - Repository health metrics
+
+**Dashboard Creation Modes:**
+- `renovate-only` (default): Create dashboards only for actual Renovate PRs
+- `test`: Create dashboards for any PR in configured test repositories
+- `any`: Create dashboards for any PR in any repository
+- `none`: Never create dashboards automatically
 
 ## 🌐 Language Support
 

@@ -67,6 +67,7 @@ The local setup allows you to:
 ✅ **Test PR processing logic** with real PR data
 ✅ **Test dependency fixing** on real repositories
 ✅ **Debug webhook processing** with real GitHub events
+✅ **Test dashboard creation** with different modes (test, any, none, renovate-only)
 
 ## Simulating GitHub Webhooks
 
@@ -125,6 +126,9 @@ GITHUB_TEST_REPOSITORIES=org/repo1,org/repo2  # For testing
 HOST=0.0.0.0
 PORT=8000
 DEBUG=true
+
+# Dashboard configuration
+DASHBOARD_CREATION_MODE=test  # For testing: create dashboards for any PR
 
 # Dependency fixing
 ENABLE_DEPENDENCY_FIXING=true

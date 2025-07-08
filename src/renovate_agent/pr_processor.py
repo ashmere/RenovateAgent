@@ -92,15 +92,32 @@ class PRProcessor:
 
             pr = await self.github_client.get_pr(repo, pr_number)
 
-            # Verify this is a Renovate PR
-            if not await self.github_client.is_renovate_pr(pr):
+            # Check if this is a Renovate PR or if we should process anyway
+            is_renovate_pr = await self.github_client.is_renovate_pr(pr)
+            should_create_dashboard = self.settings.should_create_dashboard(
+                repo.full_name, is_renovate_pr
+            )
+
+            # If not a Renovate PR and we shouldn't create dashboard, ignore
+            if not is_renovate_pr and not should_create_dashboard:
                 return {"message": "Not a Renovate PR", "action": "ignored"}
 
-            # Process based on action
-            if action in ["opened", "synchronize", "reopened", "ready_for_review"]:
-                return await self._process_pr_for_approval(repo, pr)
+            # Create or update dashboard if configured to do so
+            if should_create_dashboard:
+                await self._ensure_dashboard_exists(repo, pr, is_renovate_pr)
+
+            # Only process Renovate PRs for approval logic
+            if is_renovate_pr:
+                # Process based on action
+                if action in ["opened", "synchronize", "reopened", "ready_for_review"]:
+                    return await self._process_pr_for_approval(repo, pr)
+                else:
+                    return {"message": f"Action '{action}' not handled"}
             else:
-                return {"message": f"Action '{action}' not handled"}
+                return {
+                    "message": "Dashboard updated for non-Renovate PR",
+                    "action": "dashboard_updated",
+                }
 
         except Exception as e:
             logger.error(
@@ -507,3 +524,41 @@ class PRProcessor:
                 pr_number=pr_number,
                 repo_name=repo_name,
             ) from e
+
+    async def _ensure_dashboard_exists(
+        self, repo: Repository, pr: PullRequest, is_renovate_pr: bool
+    ) -> None:
+        """
+        Ensure dashboard exists and is updated for the repository.
+
+        Args:
+            repo: Repository object
+            pr: Pull request object
+            is_renovate_pr: Whether this is a Renovate PR
+        """
+        try:
+            from .issue_manager import IssueStateManager
+
+            issue_manager = IssueStateManager(self.github_client, self.settings)
+
+            # Create or get existing dashboard issue
+            await issue_manager.get_or_create_dashboard_issue(repo)
+
+            # Update dashboard with current repository state
+            await issue_manager.update_dashboard_issue(repo)
+
+            logger.info(
+                "Dashboard ensured and updated for repository",
+                repository=repo.full_name,
+                pr_number=pr.number,
+                is_renovate_pr=is_renovate_pr,
+                dashboard_mode=self.settings.dashboard_creation_mode,
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to ensure dashboard exists",
+                repository=repo.full_name,
+                pr_number=pr.number,
+                error=str(e),
+            )

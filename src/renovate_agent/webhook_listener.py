@@ -111,7 +111,7 @@ class WebhookListener:
         ):
             logger.error(
                 "Invalid webhook signature",
-                github_event=x_github_event,
+                webhook_event_type=x_github_event,
                 delivery_id=x_github_delivery,
             )
             raise HTTPException(status_code=401, detail="Invalid signature")
@@ -122,7 +122,7 @@ class WebhookListener:
         except json.JSONDecodeError as e:
             logger.error(
                 "Invalid JSON payload",
-                github_event=x_github_event,
+                webhook_event_type=x_github_event,
                 delivery_id=x_github_delivery,
                 error=str(e),
             )
@@ -131,7 +131,7 @@ class WebhookListener:
         # Log webhook event
         logger.info(
             "Received GitHub webhook",
-            github_event=x_github_event,
+            webhook_event_type=x_github_event,
             action=data.get("action"),
             delivery_id=x_github_delivery,
             repository=data.get("repository", {}).get("full_name"),
@@ -139,7 +139,9 @@ class WebhookListener:
 
         # Check if event is supported
         if x_github_event not in self.supported_events:
-            logger.info("Unsupported event type, ignoring", github_event=x_github_event)
+            logger.info(
+                "Unsupported event type, ignoring", webhook_event_type=x_github_event
+            )
             return JSONResponse(
                 content={"message": "Event not supported"}, status_code=200
             )
@@ -156,7 +158,7 @@ class WebhookListener:
         except Exception as e:
             logger.error(
                 "Failed to process webhook event",
-                github_event=x_github_event,
+                webhook_event_type=x_github_event,
                 delivery_id=x_github_delivery,
                 error=str(e),
             )
@@ -208,12 +210,7 @@ class WebhookListener:
         if action not in ["opened", "synchronize", "reopened", "ready_for_review"]:
             return {"message": f"PR action '{action}' not relevant"}
 
-        # Check if PR is from Renovate
-        user_login = pr_data.get("user", {}).get("login", "")
-        if not user_login.startswith("renovate"):
-            return {"message": "PR not from Renovate bot"}
-
-        # Get PR processor and process the PR
+        # Get PR processor and process the PR (it will handle Renovate filtering and dashboard logic)
         pr_processor = self._get_pr_processor()
         result = await pr_processor.process_pr_event(action, pr_data, repo_data)
 

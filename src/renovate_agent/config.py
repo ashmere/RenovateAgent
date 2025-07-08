@@ -121,6 +121,10 @@ class Settings(BaseSettings):
     update_dashboard_on_events: bool = Field(
         default=True, description="Update dashboard on events"
     )
+    dashboard_creation_mode: str = Field(
+        default="renovate-only",
+        description="Dashboard creation mode: test, any, none, renovate-only",
+    )
 
     # Rate limiting
     github_api_rate_limit: int = Field(
@@ -233,6 +237,15 @@ class Settings(BaseSettings):
             raise ValueError(f"Invalid log level: {v}")
         return v.upper()
 
+    @field_validator("dashboard_creation_mode")
+    @classmethod
+    def validate_dashboard_creation_mode(cls, v: str) -> str:
+        """Validate dashboard creation mode."""
+        allowed_modes = {"test", "any", "none", "renovate-only"}
+        if v not in allowed_modes:
+            raise ValueError(f"Invalid dashboard creation mode: {v}")
+        return v
+
     @property
     def github_app_config(self) -> GitHubAppConfig:
         """Get GitHub App configuration."""
@@ -313,6 +326,34 @@ class Settings(BaseSettings):
                 return []
             return [repo.strip() for repo in test_repos.split(",") if repo.strip()]
         return test_repos
+
+    def should_create_dashboard(
+        self, repository: str, is_renovate_pr: bool = False
+    ) -> bool:
+        """
+        Check if a dashboard should be created based on the creation mode.
+
+        Args:
+            repository: Full repository name (org/repo)
+            is_renovate_pr: Whether this is a Renovate PR
+
+        Returns:
+            True if dashboard should be created
+        """
+        mode = self.dashboard_creation_mode
+
+        if mode == "none":
+            return False
+        elif mode == "any":
+            return True
+        elif mode == "renovate-only":
+            return is_renovate_pr
+        elif mode == "test":
+            test_repos = self.get_test_repositories()
+            return repository in test_repos
+        else:
+            # Default to renovate-only behavior
+            return is_renovate_pr
 
 
 # Global settings instance - initialized lazily to avoid import-time errors
