@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.2.0-blue.svg" alt="Version">
-  <img src="https://img.shields.io/badge/python-3.8%2B-blue.svg" alt="Python Version">
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue.svg" alt="Python Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
 
@@ -60,7 +60,7 @@ graph TD
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.12 or higher
 - [Poetry](https://python-poetry.org/) for dependency management
 - Git
 - A GitHub App with appropriate permissions OR a GitHub Personal Access Token (for development)
@@ -248,7 +248,7 @@ Secure handling of GitHub App private keys with proper rotation practices.
 
 ### Docker
 ```dockerfile
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
