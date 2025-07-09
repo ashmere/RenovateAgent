@@ -43,6 +43,8 @@ jobs:
         run: |
           poetry run pre-commit run --all-files --verbose --show-diff-on-failure
         timeout-minutes: 5
+        env:
+          SKIP: pytest
 
   test:
     runs-on: ubuntu-latest
