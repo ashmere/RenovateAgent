@@ -39,57 +39,10 @@ jobs:
         run: |
           poetry run pre-commit install --install-hooks
 
-      - name: Run pre-commit hooks individually
+      - name: Run pre-commit hooks
         run: |
-          echo "Running hooks individually to identify failures..."
-
-          echo "1. Running trailing-whitespace..."
-          poetry run pre-commit run trailing-whitespace --all-files --verbose || echo "❌ trailing-whitespace failed"
-
-          echo "2. Running end-of-file-fixer..."
-          poetry run pre-commit run end-of-file-fixer --all-files --verbose || echo "❌ end-of-file-fixer failed"
-
-          echo "3. Running check-yaml..."
-          poetry run pre-commit run check-yaml --all-files --verbose || echo "❌ check-yaml failed"
-
-          echo "4. Running check-added-large-files..."
-          poetry run pre-commit run check-added-large-files --all-files --verbose || echo "❌ check-added-large-files failed"
-
-          echo "5. Running check-merge-conflict..."
-          poetry run pre-commit run check-merge-conflict --all-files --verbose || echo "❌ check-merge-conflict failed"
-
-          echo "6. Running check-json..."
-          poetry run pre-commit run check-json --all-files --verbose || echo "❌ check-json failed"
-
-          echo "7. Running check-toml..."
-          poetry run pre-commit run check-toml --all-files --verbose || echo "❌ check-toml failed"
-
-          echo "8. Running debug-statements..."
-          poetry run pre-commit run debug-statements --all-files --verbose || echo "❌ debug-statements failed"
-
-          echo "9. Running detect-private-key..."
-          poetry run pre-commit run detect-private-key --all-files --verbose || echo "❌ detect-private-key failed"
-
-          echo "10. Running black..."
-          poetry run pre-commit run black --all-files --verbose || echo "❌ black failed"
-
-          echo "11. Running ruff..."
-          poetry run pre-commit run ruff --all-files --verbose || echo "❌ ruff failed"
-
-          echo "12. Running mypy..."
-          poetry run pre-commit run mypy --all-files --verbose || echo "❌ mypy failed"
-
-          echo "13. Running gitleaks..."
-          poetry run pre-commit run gitleaks --all-files --verbose || echo "❌ gitleaks failed"
-
-          echo "14. Running isort..."
-          poetry run pre-commit run isort --all-files --verbose || echo "❌ isort failed"
-
-          echo "15. Running pytest..."
-          poetry run pre-commit run pytest --all-files --verbose || echo "❌ pytest failed"
-
-          echo "✅ Individual hook testing completed"
-        timeout-minutes: 10
+          poetry run pre-commit run --all-files --verbose --show-diff-on-failure
+        timeout-minutes: 5
 
   test:
     runs-on: ubuntu-latest
