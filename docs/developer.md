@@ -42,7 +42,7 @@ The Renovate PR Assistant is built as a modular, stateless system with the follo
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.9+
 - Git
 - GitHub App with appropriate permissions
 - Virtual environment (recommended)
@@ -421,7 +421,7 @@ async def rate_limit_middleware(request: Request, call_next):
 
 ### Production Requirements
 
-- Python 3.8+
+- Python 3.9+
 - PostgreSQL (recommended) or SQLite
 - Redis for caching (optional)
 - Reverse proxy (nginx recommended)
