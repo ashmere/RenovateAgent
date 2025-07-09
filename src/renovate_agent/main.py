@@ -189,7 +189,7 @@ async def root() -> dict[str, str]:
 @app.get("/health")
 async def health_check() -> dict[str, str | bool]:
     """Health check endpoint."""
-    health_data = {"status": "healthy"}
+    health_data: dict[str, str | bool] = {"status": "healthy"}
 
     # Add polling status if enabled
     if hasattr(app.state, "polling_orchestrator"):

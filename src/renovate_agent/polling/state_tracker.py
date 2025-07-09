@@ -7,7 +7,7 @@ storage backend, extending the existing dashboard functionality.
 
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -180,7 +180,7 @@ class PollingStateTracker:
         try:
             # Parse JSON data from issue body
             dashboard_data = await self._extract_dashboard_data(dashboard_issue)
-            return dashboard_data.get("polling_metadata", {})
+            return cast(dict[str, Any], dashboard_data.get("polling_metadata", {}))
 
         except Exception as e:
             logger.error(
@@ -214,7 +214,7 @@ class PollingStateTracker:
                 return {}
 
             json_content = issue_body[json_start:json_end]
-            return json.loads(json_content)
+            return cast(dict[str, Any], json.loads(json_content))
 
         except (json.JSONDecodeError, Exception) as e:
             logger.error(

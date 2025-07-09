@@ -463,6 +463,8 @@ class IssueStateManager:
                     poll_dt = datetime.fromisoformat(last_poll.replace("Z", "+00:00"))
                     last_poll = poll_dt.strftime("%Y-%m-%d %H:%M UTC")
                 except Exception:
+                    # Keep original format if parsing fails
+                    logger.debug(f"Could not parse polling timestamp: {last_poll}")
                     pass
 
             polling_status = f"""

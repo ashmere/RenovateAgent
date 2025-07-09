@@ -99,19 +99,19 @@ The system supports two operation modes that can run independently or simultaneo
 ```mermaid
 graph TD
     START[Application Start] --> CHECK_CONFIG[Check Configuration]
-    
+
     CHECK_CONFIG --> WEBHOOK_ENABLED{Webhook Enabled?}
     CHECK_CONFIG --> POLLING_ENABLED{Polling Enabled?}
-    
+
     WEBHOOK_ENABLED -->|Yes| START_WEBHOOK[Start Webhook Listener]
     POLLING_ENABLED -->|Yes| START_POLLING[Start Polling Orchestrator]
-    
+
     START_WEBHOOK --> WEBHOOK_MODE[Webhook Mode Active]
     START_POLLING --> POLLING_MODE[Polling Mode Active]
-    
+
     WEBHOOK_MODE --> DUAL_CHECK{Both Active?}
     POLLING_MODE --> DUAL_CHECK
-    
+
     DUAL_CHECK -->|Yes| DUAL_MODE[Dual Mode Operation]
     DUAL_CHECK -->|No| SINGLE_MODE[Single Mode Operation]
 ```
@@ -524,19 +524,19 @@ LOG_FORMAT=json
 graph TD
     WEBHOOK[GitHub Webhook] --> WEBHOOK_VALIDATE[Validate Signature]
     POLLING[Polling Timer] --> POLLING_SCAN[Scan Repositories]
-    
+
     WEBHOOK_VALIDATE --> WEBHOOK_PARSE[Parse JSON Payload]
     POLLING_SCAN --> POLLING_DISCOVER[Discover New PRs]
-    
+
     WEBHOOK_PARSE --> CHECK_EVENT[Check Event Type]
     POLLING_DISCOVER --> CHECK_STATE[Check Processing State]
-    
+
     CHECK_EVENT --> WEBHOOK_PROCESS[Process Webhook Event]
     CHECK_STATE --> POLLING_PROCESS[Process Discovered PR]
-    
+
     WEBHOOK_PROCESS --> UNIFIED_PROCESSOR[Unified PR Processor]
     POLLING_PROCESS --> UNIFIED_PROCESSOR
-    
+
     UNIFIED_PROCESSOR --> UPDATE_STATE[Update Processing State]
     UPDATE_STATE --> RESPONSE[JSON Response / State Update]
 ```
@@ -547,25 +547,25 @@ graph TD
 graph TD
     POLL_START[Polling Cycle Start] --> GET_REPOS[Get Repository List]
     GET_REPOS --> CHECK_RATE_LIMIT[Check API Rate Limit]
-    
+
     CHECK_RATE_LIMIT --> SUFFICIENT{Sufficient Quota?}
     SUFFICIENT -->|No| WAIT[Wait for Rate Limit Reset]
     SUFFICIENT -->|Yes| CONCURRENT_SCAN[Concurrent Repository Scan]
-    
+
     WAIT --> CHECK_RATE_LIMIT
-    
+
     CONCURRENT_SCAN --> GET_PRS[Get Open PRs]
     GET_PRS --> FILTER_RENOVATE[Filter Renovate PRs]
     FILTER_RENOVATE --> CHECK_PROCESSED[Check If Already Processed]
-    
+
     CHECK_PROCESSED --> NEW_PR{New PR?}
     NEW_PR -->|Yes| PROCESS_PR[Process PR]
     NEW_PR -->|No| SKIP_PR[Skip - Already Processed]
-    
+
     PROCESS_PR --> UPDATE_POLL_STATE[Update Polling State]
     SKIP_PR --> NEXT_REPO[Continue to Next Repository]
     UPDATE_POLL_STATE --> NEXT_REPO
-    
+
     NEXT_REPO --> ALL_DONE{All Repos Done?}
     ALL_DONE -->|No| GET_PRS
     ALL_DONE -->|Yes| SCHEDULE_NEXT[Schedule Next Poll]
@@ -576,21 +576,21 @@ graph TD
 ```mermaid
 graph TD
     EVENT[PR Event] --> SOURCE{Event Source}
-    
+
     SOURCE -->|Webhook| WEBHOOK_ID[Extract PR ID from Webhook]
     SOURCE -->|Polling| POLLING_ID[Extract PR ID from API]
-    
+
     WEBHOOK_ID --> CHECK_STATE[Check Processing State]
     POLLING_ID --> CHECK_STATE
-    
+
     CHECK_STATE --> PROCESSED{Already Processed?}
-    
+
     PROCESSED -->|Yes| LOG_SKIP[Log: Duplicate Event Skipped]
     PROCESSED -->|No| MARK_PROCESSING[Mark PR as Processing]
-    
+
     LOG_SKIP --> RETURN_SUCCESS[Return Success]
     MARK_PROCESSING --> PROCESS_PR[Process PR Event]
-    
+
     PROCESS_PR --> MARK_COMPLETE[Mark PR as Processed]
     MARK_COMPLETE --> UPDATE_DASHBOARD[Update Dashboard]
     UPDATE_DASHBOARD --> RETURN_SUCCESS
@@ -692,12 +692,12 @@ services:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
       - GITHUB_ORGANIZATION=${GITHUB_ORGANIZATION}
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
-      
+
       # Operation modes
       - ENABLE_WEBHOOKS=${ENABLE_WEBHOOKS:-true}
       - ENABLE_POLLING=${ENABLE_POLLING:-true}
       - POLLING_INTERVAL_MINUTES=${POLLING_INTERVAL_MINUTES:-2}
-      
+
       # Repository configuration
       - POLLING_REPOSITORIES=${POLLING_REPOSITORIES}
     volumes:

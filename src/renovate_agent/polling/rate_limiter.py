@@ -53,8 +53,8 @@ class RateLimitManager:
         self.github_client = github_client
         self.settings = settings
         self.config = settings.polling_config
-        self._last_check = None
-        self._cached_status = None
+        self._last_check: datetime | None = None
+        self._cached_status: RateLimitStatus | None = None
 
     async def check_rate_limits(self) -> RateLimitStatus:
         """
@@ -67,8 +67,8 @@ class RateLimitManager:
 
         # Use cached status if recent enough
         if (
-            self._cached_status
-            and self._last_check
+            self._cached_status is not None
+            and self._last_check is not None
             and (now - self._last_check).total_seconds()
             < self.config.rate_limit_check_interval
         ):
