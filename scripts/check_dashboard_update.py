@@ -10,7 +10,7 @@ import asyncio
 import json
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List
 
@@ -49,7 +49,8 @@ async def check_dashboard_for_repo(repo_name: str) -> Dict:
         last_updated = dashboard_issue.updated_at
 
         # Check if it was updated recently (within last hour)
-        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+        # Use timezone-aware datetime for comparison
+        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
         recently_updated = last_updated > one_hour_ago
 
         # Check content for recent activity
@@ -61,7 +62,7 @@ async def check_dashboard_for_repo(repo_name: str) -> Dict:
             "✅",  # approval checkmarks
             "🔄",  # processing indicators
             "Updated:",  # update timestamps
-            str(datetime.utcnow().year),  # current year
+            str(datetime.now(timezone.utc).year),  # current year
         ]
 
         contains_recent_activity = any(
@@ -157,7 +158,7 @@ async def main():
 
     # Output results as JSON
     output = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "test_repositories": test_repos,
         "results": results,
     }

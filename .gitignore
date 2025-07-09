@@ -188,3 +188,6 @@ alembic.ini
 
 # Git
 .gitignore.bak
+
+#test-artifacts
+test-artifacts/
