@@ -118,6 +118,7 @@ venv.bak/
 .env.staging
 docker-test.env
 test-real.env
+.env.*
 
 # Spyder project settings
 .spyderproject
