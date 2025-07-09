@@ -291,15 +291,35 @@ step_6_capture_dashboard_after() {
     # Wait a moment for any final updates
     sleep 10
 
-    if ! poetry run python scripts/check_dashboard_update.py > "${TEST_ARTIFACTS_DIR}/dashboard-after.json" 2>&1; then
-        log "WARN" "Dashboard check had issues, continuing anyway"
+    # Temporarily disable exit on error for debugging
+    set +e
+
+    log "DEBUG" "Running dashboard check script..."
+    poetry run python scripts/check_dashboard_update.py > "${TEST_ARTIFACTS_DIR}/dashboard-after-raw.json" 2>&1
+    local dashboard_exit_code=$?
+    log "DEBUG" "Dashboard check exit code: $dashboard_exit_code"
+
+    # Extract just the JSON part (starts with '{')
+    if grep -A 1000 '^{' "${TEST_ARTIFACTS_DIR}/dashboard-after-raw.json" > "${TEST_ARTIFACTS_DIR}/dashboard-after.json"; then
+        log "DEBUG" "Successfully extracted JSON from dashboard output"
+    else
+        log "WARN" "Failed to extract JSON from dashboard output, using raw output"
+        cp "${TEST_ARTIFACTS_DIR}/dashboard-after-raw.json" "${TEST_ARTIFACTS_DIR}/dashboard-after.json"
+    fi
+
+    if [[ $dashboard_exit_code -ne 0 ]]; then
+        log "WARN" "Dashboard check had issues (exit code: $dashboard_exit_code), continuing anyway"
     fi
 
     # Extract key metrics for comparison
+    log "DEBUG" "Extracting dashboard metrics..."
     jq -r '.results[] | "\(.repository): \(.pr_entries_count) PR entries, last updated \(.last_updated)"' \
         "${TEST_ARTIFACTS_DIR}/dashboard-after.json" 2>/dev/null | while read -r line; do
         log "DEBUG" "After: $line"
     done
+
+    # Re-enable exit on error
+    set -e
 
     log "INFO" "✅ Dashboard state captured"
 }

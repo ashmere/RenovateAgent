@@ -1,7 +1,7 @@
 # Renovate PR Assistant
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.4.1-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.5.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/python-3.12%2B-blue.svg" alt="Python Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
@@ -325,7 +325,7 @@ The Docker Compose setup includes:
 
 ## 🧪 Testing
 
-### Run Tests
+### Unit Tests
 ```bash
 poetry run pytest tests/
 poetry run pytest --cov=renovate_agent tests/  # With coverage
@@ -335,6 +335,24 @@ poetry run pytest --cov=renovate_agent tests/  # With coverage
 ```bash
 poetry run pytest tests/integration/ -m integration
 ```
+
+### End-to-End Testing with test-runner.sh
+The project includes a comprehensive test runner for real-world validation:
+
+```bash
+# Run comprehensive end-to-end tests
+./test-runner.sh
+
+# Features:
+# ✅ Dynamic Renovate PR discovery across repositories
+# ✅ GitHub authentication and API connectivity validation
+# ✅ Polling system testing with Docker environment
+# ✅ Dashboard state validation and update testing
+# ✅ Business logic verification (approval criteria)
+# ✅ Comprehensive test reporting and artifacts
+```
+
+**Test Artifacts**: All test runs generate detailed logs and results in `test-artifacts/` directory for analysis and debugging.
 
 ## 📚 Documentation
 

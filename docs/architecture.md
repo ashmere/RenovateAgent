@@ -5,7 +5,7 @@
 RenovateAgent is an intelligent automation system that streamlines dependency management by automatically reviewing and managing [Renovate](https://github.com/renovatebot/renovate) pull requests across GitHub organizations. The system follows a **stateless architecture** with GitHub Issues as the sole state store, supporting both **webhook-driven** and **polling-based** operation modes with advanced optimizations for maximum deployment flexibility, focusing on automated PR approval, dependency fixing, and repository health monitoring to reduce manual intervention in dependency updates.
 
 **Last Updated**: 2025-07-09
-**Version**: Current Architecture v0.6.0 (Phase 2 Optimized Dual-Mode Operation)
+**Version**: Current Architecture v0.5.0 (Phase 2 Complete - Optimized Dual-Mode Operation)
 
 ## System Architecture
 

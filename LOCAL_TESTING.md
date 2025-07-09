@@ -20,11 +20,29 @@ The setup script handles authentication, validation, and configuration with **in
 # 1. Install dependencies
 poetry install
 
-# 2. Run automated setup (creates optimized .env file)
-poetry run python scripts/setup_local_environment.py
+# 2. Configure .env file with your GitHub settings
+cp env.example .env
+# Edit .env with your GitHub token and repositories
 
 # 3. Start the application in polling mode
 poetry run python -m renovate_agent.main
+```
+
+### Option 2: Comprehensive Testing with test-runner.sh
+
+For full end-to-end testing including dashboard validation and PR discovery:
+
+```bash
+# 1. Ensure .env is configured with real repositories
+# 2. Run comprehensive test suite
+./test-runner.sh
+
+# The test runner will:
+# - Validate GitHub authentication
+# - Discover Renovate PRs dynamically
+# - Test polling system functionality
+# - Validate dashboard updates
+# - Generate detailed test reports
 ```
 
 The system will automatically use **adaptive polling** with:
@@ -54,67 +72,44 @@ poetry run python -m renovate_agent.main
 Create a `.env` file with these **optimized** settings for local testing:
 
 ```bash
-# ================================================================
-# OPERATION MODE (Polling Optimized for Local Testing)
-# ================================================================
-ENABLE_POLLING=true
-ENABLE_WEBHOOKS=false
-
-# ================================================================
-# PHASE 2 POLLING OPTIMIZATIONS
-# ================================================================
-
-# Adaptive Polling (Recommended)
-POLLING_ENABLE_ADAPTIVE_INTERVALS=true
-POLLING_INTERVAL_MINUTES=2                    # Base interval
-POLLING_MAX_CONCURRENT_REPOS=3               # Local resource limits
-
-# Delta Detection (Reduces processing by 70-90%)
-POLLING_ENABLE_DELTA_DETECTION=true
-
-# Intelligent Caching (Reduces API calls by 60-80%)
-POLLING_ENABLE_CACHING=true
-POLLING_CACHE_TTL_SECONDS=300                # 5-minute default cache
-
-# Performance Monitoring
-POLLING_METRICS_COLLECTION=true
-
-# ================================================================
-# GITHUB AUTHENTICATION (Choose One)
-# ================================================================
-
-# Option A: Personal Access Token (Recommended for Local Testing)
-GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
+# GitHub Authentication (choose one)
 GITHUB_APP_ID=0
+GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
+GITHUB_APP_PRIVATE_KEY_PATH=
+GITHUB_WEBHOOK_SECRET=dev-secret
+GITHUB_ORGANIZATION=your-org-name
+GITHUB_API_URL=https://api.github.com
 
-# Option B: GitHub App (Production-like Testing)
-# GITHUB_APP_ID=123456
-# GITHUB_APP_PRIVATE_KEY_PATH=/path/to/private-key.pem
+# Polling Mode (Phase 2 Optimized)
+ENABLE_POLLING=true
+POLLING_INTERVAL_SECONDS=120
+POLLING_MAX_INTERVAL_SECONDS=600
+POLLING_ADAPTIVE=true
+POLLING_CONCURRENT_REPOS=5
 
-# Common Settings
-GITHUB_ORGANIZATION=your-org-or-username
-GITHUB_WEBHOOK_SECRET=local-test-secret
+# Repository Settings
+GITHUB_REPOSITORY_ALLOWLIST=
+GITHUB_TEST_REPOSITORIES=your-org/repo1,your-org/repo2
+IGNORE_ARCHIVED_REPOSITORIES=true
 
-# ================================================================
-# REPOSITORY CONFIGURATION
-# ================================================================
-POLLING_REPOSITORIES=your-org/test-repo1,your-org/test-repo2
-GITHUB_TEST_REPOSITORIES=your-org/test-repo1,your-org/test-repo2
+# Dependency Fixing
+ENABLE_DEPENDENCY_FIXING=true
+SUPPORTED_LANGUAGES=python,typescript,go
+CLONE_TIMEOUT=300
+DEPENDENCY_UPDATE_TIMEOUT=600
 
-# ================================================================
-# RATE LIMITING & PERFORMANCE
-# ================================================================
-GITHUB_API_RATE_LIMIT=5000                   # Standard GitHub limit
-POLLING_RATE_LIMIT_BUFFER=1000              # Safety buffer
-POLLING_RATE_LIMIT_THRESHOLD=0.8            # Throttle at 80% usage
+# Dashboard
+DASHBOARD_ISSUE_TITLE="Renovate PRs Assistant Dashboard"
+UPDATE_DASHBOARD_ON_EVENTS=true
+DASHBOARD_CREATION_MODE=renovate-only
 
-# ================================================================
-# LOCAL DEVELOPMENT SETTINGS
-# ================================================================
+# Server
+HOST=0.0.0.0
+PORT=8000
 DEBUG=true
-LOG_LEVEL=DEBUG
-HOST=127.0.0.1
-PORT=8001
+
+# Logging
+LOG_LEVEL=INFO
 ```
 
 ## Testing Modes
@@ -167,6 +162,57 @@ ENABLE_POLLING=true ENABLE_WEBHOOKS=true poetry run python -m renovate_agent.mai
 - Polling provides backup coverage
 - Automatic deduplication prevents double-processing
 - Cross-validation of both event sources
+
+## Comprehensive Testing with test-runner.sh
+
+The `test-runner.sh` script provides **comprehensive end-to-end testing** with intelligent PR discovery and dashboard validation:
+
+### Features
+- **✅ Dynamic PR Discovery**: Automatically finds open Renovate PRs across test repositories
+- **✅ GitHub Authentication Validation**: Verifies connection and permissions
+- **✅ Polling System Testing**: Tests real-world polling functionality with Docker
+- **✅ Dashboard Validation**: Confirms dashboard updates and state persistence
+- **✅ Business Logic Awareness**: Understands approval criteria and reasons for non-approval
+- **✅ Comprehensive Reporting**: Detailed logs and test artifacts
+
+### Usage
+
+```bash
+# Simple execution
+./test-runner.sh
+
+# The script will automatically:
+# 1. Validate GitHub authentication and connectivity
+# 2. Discover open Renovate PRs from configured repositories
+# 3. Test polling system functionality using Docker
+# 4. Monitor and validate dashboard updates
+# 5. Generate comprehensive test reports with artifacts
+```
+
+### Test Scenarios
+
+**Scenario 1: Active Renovate PRs Found**
+- Attempts approval of suitable PRs
+- Validates dashboard updates reflect changes
+- Confirms polling system functionality
+
+**Scenario 2: No Suitable PRs (Business Logic)**
+- Tests dashboard update functionality instead
+- Validates polling system detects PR state correctly
+- Confirms proper business rule application
+
+**Scenario 3: No Renovate PRs Found**
+- Reports repository status
+- Provides suggestions for test setup
+- Validates basic connectivity
+
+### Test Artifacts
+
+All test runs generate artifacts in `test-artifacts/`:
+- **`test-run-YYYYMMDD-HHMMSS.log`**: Complete test execution log
+- **`test-results.json`**: Structured test results and metrics
+- **`dashboard-before.json`**: Dashboard state before testing
+- **`dashboard-after.json`**: Dashboard state after testing
 
 ## Phase 2 Features Testing
 
