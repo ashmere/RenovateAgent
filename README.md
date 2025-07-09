@@ -80,6 +80,13 @@ For comprehensive system architecture, deployment options, and technical specifi
 
 3. **Configure environment**
    ```bash
+   # Interactive setup (recommended for first-time setup)
+   python scripts/local_setup.py
+
+   # Non-interactive setup (CI/CD and automated environments)
+   python scripts/local_setup.py --non-interactive
+
+   # Or manual configuration
    cp .env.example .env
    # Edit .env with your configuration (see Configuration section)
    ```

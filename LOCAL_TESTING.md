@@ -20,13 +20,21 @@ The setup script handles authentication, validation, and configuration with **in
 # 1. Install dependencies
 poetry install
 
-# 2. Configure .env file with your GitHub settings
-cp env.example .env
-# Edit .env with your GitHub token and repositories
+# 2. Configure environment (Interactive setup)
+python scripts/local_setup.py
+
+# 2b. Or for CI/CD and automated setups (Non-interactive)
+python scripts/local_setup.py --non-interactive
 
 # 3. Start the application in polling mode
 poetry run python -m renovate_agent.main
 ```
+
+**Setup Script Features**:
+- **Interactive mode**: Guides through GitHub authentication, organization setup, and repository selection
+- **Non-interactive mode**: Automatically updates existing `.env` files safely, preserving sensitive data
+- **Smart validation**: Verifies GitHub access and repository permissions
+- **Flexible authentication**: Supports GitHub CLI tokens or manual Personal Access Tokens
 
 ### Option 2: Comprehensive Testing with test-runner.sh
 

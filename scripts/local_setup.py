@@ -3,10 +3,14 @@
 Local development setup script for Renovate PR Assistant.
 
 This script helps set up local testing environment using GitHub CLI
-authentication
-or guides you through creating a Personal Access Token.
+authentication or guides you through creating a Personal Access Token.
+
+Supports both interactive and non-interactive modes:
+- Interactive: Prompts for configuration choices
+- Non-interactive: Automatically updates existing .env safely
 """
 
+import argparse
 import os
 import subprocess
 import sys
@@ -203,7 +207,20 @@ def check_dependencies():
 
 def main():
     """Main setup function."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="Setup local development environment for RenovateAgent"
+    )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Run in non-interactive mode (auto-updates existing .env safely)",
+    )
+    args = parser.parse_args()
+
     print("🚀 Renovate PR Assistant - Local Development Setup")
+    if args.non_interactive:
+        print("🤖 Running in non-interactive mode")
     print("=" * 50)
 
     # Check if we're in the right directory
@@ -221,34 +238,51 @@ def main():
 
     if env_exists:
         print("\n📄 Existing .env file detected")
-        update_choice = (
-            input(
-                "Update existing .env (preserves token/org) or create fresh? "
-                "[U]pdate/[F]resh: "
-            )
-            .strip()
-            .lower()
-        )
-        update_mode = update_choice in ["", "u", "update"]
 
-        if update_mode:
-            print("🔄 Update mode: Will preserve existing sensitive data")
+        if args.non_interactive:
+            # Non-interactive mode: always use safe update mode
+            update_mode = True
+            print("🔄 Non-interactive mode: Using safe update mode")
+            print("   Will preserve existing sensitive data")
         else:
-            print("🆕 Fresh mode: Will create new configuration")
+            # Interactive mode: ask user
+            update_choice = (
+                input(
+                    "Update existing .env (preserves token/org) or create fresh? "
+                    "[U]pdate/[F]resh: "
+                )
+                .strip()
+                .lower()
+            )
+            update_mode = update_choice in ["", "u", "update"]
+
+            if update_mode:
+                print("🔄 Update mode: Will preserve existing sensitive data")
+            else:
+                print("🆕 Fresh mode: Will create new configuration")
+    elif args.non_interactive:
+        print("\n🤖 Non-interactive mode with no existing .env")
+        print("❌ Cannot run non-interactively without existing configuration")
+        print("   Please run interactively first: python scripts/local_setup.py")
+        sys.exit(1)
 
     # Try to get token from existing .env or CLI
     token = None
     org = None
 
+    test_repos = None
     if update_mode:
         existing_vars = read_existing_env()
         token = existing_vars.get("GITHUB_PERSONAL_ACCESS_TOKEN")
         org = existing_vars.get("GITHUB_ORGANIZATION")
+        test_repos = existing_vars.get("GITHUB_TARGET_REPOSITORIES")
 
         if token and org:
             print("✅ Found existing token and organization")
             print(f"   Token: {token[:10]}...")
             print(f"   Organization: {org}")
+            if test_repos:
+                print(f"   Test repositories: {test_repos}")
         else:
             print("⚠️  Incomplete existing config, will prompt for missing data")
             update_mode = False  # Fall back to fresh setup
@@ -284,6 +318,11 @@ def main():
 
     # Get organization if not from existing config
     if not org:
+        if args.non_interactive:
+            print("❌ No organization found in existing .env")
+            print("   Cannot run non-interactively without organization")
+            sys.exit(1)
+
         print("\n🏢 Organization Setup")
         org_prompt = "Enter your GitHub organization/username for testing: "
         org = input(org_prompt).strip()
@@ -301,25 +340,31 @@ def main():
         print("   Please check your token permissions and organization name.")
         sys.exit(1)
 
-    # Get test repositories
-    test_repos = None
-    if not update_mode:
-        print("\n📚 Test Repository Setup")
-        suggested_repos = get_repository_suggestions(org)
-        print("Suggested test repositories:")
-        for repo in suggested_repos:
-            print(f"   - {repo}")
-
-        repo_prompt = "\nUse suggested repositories? [Y/n]: "
-        use_suggested = input(repo_prompt).strip().lower()
-        if use_suggested in ["", "y", "yes"]:
+    # Get test repositories if not from existing config
+    if not test_repos and not update_mode:
+        if args.non_interactive:
+            # Non-interactive mode without existing test repos
+            suggested_repos = get_repository_suggestions(org)
             test_repos = ",".join(suggested_repos)
+            print(f"\n📚 Non-interactive mode: Using suggested repositories")
+            print(f"   Test repositories: {test_repos}")
         else:
-            print("Enter test repositories (format: org/repo1,org/repo2):")
-            test_repos = input("Test repositories: ").strip()
-            if not test_repos:
+            print("\n📚 Test Repository Setup")
+            suggested_repos = get_repository_suggestions(org)
+            print("Suggested test repositories:")
+            for repo in suggested_repos:
+                print(f"   - {repo}")
+
+            repo_prompt = "\nUse suggested repositories? [Y/n]: "
+            use_suggested = input(repo_prompt).strip().lower()
+            if use_suggested in ["", "y", "yes"]:
                 test_repos = ",".join(suggested_repos)
-                print(f"Using default: {test_repos}")
+            else:
+                print("Enter test repositories (format: org/repo1,org/repo2):")
+                test_repos = input("Test repositories: ").strip()
+                if not test_repos:
+                    test_repos = ",".join(suggested_repos)
+                    print(f"Using default: {test_repos}")
 
     # Create or update .env file
     action = "Updating" if update_mode else "Creating"
