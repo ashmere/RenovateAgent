@@ -371,9 +371,7 @@ class PollingOrchestrator:
                     )
 
                     # Process the PR using the existing processor
-                    await self.pr_processor._process_pr_for_approval(
-                        repo, pr, f"polling_discovery_{change_type}"
-                    )
+                    await self.pr_processor._process_pr_for_approval(repo, pr)
 
                     # Mark as processed
                     await self.state_tracker.mark_pr_processed(

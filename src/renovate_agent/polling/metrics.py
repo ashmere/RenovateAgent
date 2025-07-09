@@ -156,7 +156,7 @@ class MetricsCollector:
     polling-related metrics and performance data.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.start_time = datetime.now()
         self.repository_metrics: dict[str, RepositoryMetrics] = {}
         self.cycle_history: list[PollingCycleMetrics] = []
@@ -381,7 +381,7 @@ class MetricsCollector:
         )
 
         # Health scoring (0-100)
-        health_score = 100
+        health_score = 100.0
 
         # Reduce score based on recent error rate
         if recent_cycles:

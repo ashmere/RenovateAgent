@@ -17,7 +17,7 @@ logger = structlog.get_logger(__name__)
 class CacheEntry:
     """Represents a single cache entry with expiration."""
 
-    def __init__(self, value: Any, ttl_seconds: int = 300):
+    def __init__(self, value: Any, ttl_seconds: int = 300) -> None:
         self.value = value
         self.created_at = datetime.now()
         self.expires_at = self.created_at + timedelta(seconds=ttl_seconds)
@@ -39,7 +39,7 @@ class PollingCache:
     with configurable TTL (time-to-live) values.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cache: dict[str, CacheEntry] = {}
         self._stats = {
             "hits": 0,
@@ -249,7 +249,7 @@ class CacheManager:
     a unified interface for cache management.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.base_cache = PollingCache()
         self.repository_cache = RepositoryCache(self.base_cache)
         self._cleanup_task: asyncio.Task | None = None
