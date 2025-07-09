@@ -8,7 +8,7 @@ and error handling for GitHub App integration.
 import asyncio
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Optional, Union, cast
 
 import httpx
 import jwt
@@ -142,12 +142,11 @@ class GitHubClient:
                     if isinstance(installation_id, int):
                         return installation_id
                     raise AuthenticationError(
-                        f"Invalid installation ID type: " f"{type(installation_id)}"
+                        f"Invalid installation ID type: {type(installation_id)}"
                     )
 
             raise AuthenticationError(
-                f"No installation found for organization: "
-                f"{self.config.organization}"
+                f"No installation found for organization: {self.config.organization}"
             )
 
     async def _get_installation_access_token(
@@ -258,7 +257,7 @@ class GitHubClient:
             )
             raise GitHubAPIError(f"Failed to get PR {pr_number}: {e}") from e
 
-    async def get_pr_checks(self, repo: Repository, pr: PullRequest) -> List[CheckRun]:
+    async def get_pr_checks(self, repo: Repository, pr: PullRequest) -> list[CheckRun]:
         """
         Get all checks for a pull request.
 
@@ -342,7 +341,7 @@ class GitHubClient:
         repo: Repository,
         title: str,
         body: str,
-        labels: Optional[List[str]] = None,
+        labels: Optional[list[str]] = None,
     ) -> Issue:
         """
         Create a new issue.
@@ -586,7 +585,7 @@ class GitHubClient:
 
         return False
 
-    async def get_rate_limit_info(self) -> Dict[str, Any]:
+    async def get_rate_limit_info(self) -> dict[str, Any]:
         """
         Get current rate limit information.
 
@@ -615,7 +614,7 @@ class GitHubClient:
 
     async def get_organization_repositories(
         self, org_name: str, include_archived: bool = False
-    ) -> List[Repository]:
+    ) -> list[Repository]:
         """
         Get all repositories for an organization with filtering.
 

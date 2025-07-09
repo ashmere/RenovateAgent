@@ -5,7 +5,7 @@ This module defines custom exception classes for better error handling
 and debugging across the application.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 
 class RenovateAgentError(Exception):
@@ -15,7 +15,7 @@ class RenovateAgentError(Exception):
         self,
         message: str,
         code: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         super().__init__(message)
         self.code = code or "RENOVATE_AGENT_ERROR"
@@ -29,7 +29,7 @@ class GitHubAPIError(RenovateAgentError):
         self,
         message: str,
         status_code: Optional[int] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         super().__init__(message, "GITHUB_API_ERROR", context)
         self.status_code = status_code
@@ -38,7 +38,7 @@ class GitHubAPIError(RenovateAgentError):
 class AuthenticationError(RenovateAgentError):
     """Exception for authentication related errors."""
 
-    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, context: Optional[dict[str, Any]] = None):
         super().__init__(message, "AUTHENTICATION_ERROR", context)
 
 
@@ -49,7 +49,7 @@ class RateLimitError(RenovateAgentError):
         self,
         message: str,
         reset_time: Optional[float] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         super().__init__(message, "RATE_LIMIT_ERROR", context)
         self.reset_time = reset_time
@@ -58,7 +58,7 @@ class RateLimitError(RenovateAgentError):
 class WebhookValidationError(RenovateAgentError):
     """Exception for webhook validation errors."""
 
-    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, context: Optional[dict[str, Any]] = None):
         super().__init__(message, "WEBHOOK_VALIDATION_ERROR", context)
 
 
@@ -69,7 +69,7 @@ class DependencyFixingError(RenovateAgentError):
         self,
         message: str,
         language: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         super().__init__(message, "DEPENDENCY_FIXING_ERROR", context)
         self.language = language
@@ -78,7 +78,7 @@ class DependencyFixingError(RenovateAgentError):
 class ConfigurationError(RenovateAgentError):
     """Exception for configuration related errors."""
 
-    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, context: Optional[dict[str, Any]] = None):
         super().__init__(message, "CONFIGURATION_ERROR", context)
 
 
@@ -90,7 +90,7 @@ class PRProcessingError(RenovateAgentError):
         message: str,
         pr_number: Optional[int] = None,
         repo_name: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         super().__init__(message, "PR_PROCESSING_ERROR", context)
         self.pr_number = pr_number
@@ -104,7 +104,7 @@ class IssueStateError(RenovateAgentError):
         self,
         message: str,
         issue_number: Optional[int] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         super().__init__(message, "ISSUE_STATE_ERROR", context)
         self.issue_number = issue_number
@@ -113,7 +113,7 @@ class IssueStateError(RenovateAgentError):
 class DatabaseError(RenovateAgentError):
     """Exception for database related errors."""
 
-    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, context: Optional[dict[str, Any]] = None):
         super().__init__(message, "DATABASE_ERROR", context)
 
 
@@ -124,7 +124,7 @@ class ExternalServiceError(RenovateAgentError):
         self,
         message: str,
         service: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,
     ):
         super().__init__(message, "EXTERNAL_SERVICE_ERROR", context)
         self.service = service

@@ -8,7 +8,7 @@ and routes events to appropriate processors.
 import hashlib
 import hmac
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import structlog
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -169,8 +169,8 @@ class WebhookListener:
             )
 
     async def _process_event(
-        self, event_type: str, data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, event_type: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Process a GitHub webhook event.
 
@@ -192,7 +192,7 @@ class WebhookListener:
         else:
             return {"message": "Event not handled"}
 
-    async def _process_pull_request_event(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_pull_request_event(self, data: dict[str, Any]) -> dict[str, Any]:
         """
         Process pull request events.
 
@@ -216,7 +216,7 @@ class WebhookListener:
 
         return result
 
-    async def _process_check_suite_event(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_check_suite_event(self, data: dict[str, Any]) -> dict[str, Any]:
         """
         Process check suite events.
 
@@ -257,7 +257,7 @@ class WebhookListener:
 
         return {"message": "Check suite processed", "results": results}
 
-    async def _process_issues_event(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_issues_event(self, data: dict[str, Any]) -> dict[str, Any]:
         """
         Process issues events.
 
@@ -286,7 +286,7 @@ class WebhookListener:
 
         return {"message": "Dashboard issue event logged"}
 
-    async def _process_push_event(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_push_event(self, data: dict[str, Any]) -> dict[str, Any]:
         """
         Process push events.
 

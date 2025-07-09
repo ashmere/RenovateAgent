@@ -5,6 +5,7 @@ module.exports = {
   requireConfig: "optional",
   platform: "github",
   autodiscover: false,
+  gitAuthor: 'Renovate Bot <bot@renovateapp.com>',
   repositories: [
      "ashmere/RenovateAgent"
   ],

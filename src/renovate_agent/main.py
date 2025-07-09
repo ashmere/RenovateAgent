@@ -63,7 +63,7 @@ async def _create_startup_dashboards(
         test_repos = current_settings.get_test_repositories()
         if not test_repos:
             logger.info(
-                "No test repositories configured for startup dashboard " "creation"
+                "No test repositories configured for startup dashboard creation"
             )
             return
 

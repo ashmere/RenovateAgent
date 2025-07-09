@@ -67,10 +67,7 @@ async def test_dashboard_creation():
 
             if dashboard_issue:
                 print("   ✅ Dashboard issue created/updated!")
-                print(
-                    f"   📝 Issue #{dashboard_issue.number}: "
-                    f"{dashboard_issue.title}"
-                )
+                print(f"   📝 Issue #{dashboard_issue.number}: {dashboard_issue.title}")
                 print(f"   🔗 URL: {dashboard_issue.html_url}")
 
                 # Get some real repository stats

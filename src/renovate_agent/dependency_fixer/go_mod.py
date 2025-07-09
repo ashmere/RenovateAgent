@@ -7,7 +7,7 @@ using Go modules.
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import structlog
 
@@ -74,7 +74,7 @@ class GoModFixer(DependencyFixer):
 
         return True
 
-    async def fix_dependencies(self, repo_path: Path, branch: str) -> Dict[str, Any]:
+    async def fix_dependencies(self, repo_path: Path, branch: str) -> dict[str, Any]:
         """
         Fix dependencies using Go modules.
 
@@ -133,7 +133,7 @@ class GoModFixer(DependencyFixer):
             )
             return {"success": False, "error": f"Go module dependency fix failed: {e}"}
 
-    async def _run_go_mod_tidy(self, repo_path: Path) -> Dict[str, Any]:
+    async def _run_go_mod_tidy(self, repo_path: Path) -> dict[str, Any]:
         """
         Run go mod tidy command.
 
@@ -160,7 +160,7 @@ class GoModFixer(DependencyFixer):
                 "error": f"go mod tidy failed: {result['stderr']}",
             }
 
-    async def _run_go_mod_download(self, repo_path: Path) -> Dict[str, Any]:
+    async def _run_go_mod_download(self, repo_path: Path) -> dict[str, Any]:
         """
         Run go mod download command.
 
@@ -191,7 +191,7 @@ class GoModFixer(DependencyFixer):
                 "error": f"go mod download failed: {result['stderr']}",
             }
 
-    async def get_lock_files(self) -> List[str]:
+    async def get_lock_files(self) -> list[str]:
         """
         Get list of lock files this fixer handles.
 
@@ -223,7 +223,7 @@ class GoModFixer(DependencyFixer):
             logger.error("Go validation failed", error=str(e))
             return False
 
-    async def get_dependency_info(self, repo_path: Path) -> Dict[str, Any]:
+    async def get_dependency_info(self, repo_path: Path) -> dict[str, Any]:
         """
         Get information about Go module dependencies.
 
@@ -272,7 +272,7 @@ class GoModFixer(DependencyFixer):
             )
             return {"error": str(e)}
 
-    async def _get_outdated_modules(self, repo_path: Path) -> Dict[str, Any]:
+    async def _get_outdated_modules(self, repo_path: Path) -> dict[str, Any]:
         """
         Get information about outdated modules.
 
@@ -312,7 +312,7 @@ class GoModFixer(DependencyFixer):
             )
             return {"error": str(e)}
 
-    async def _parse_go_mod(self, repo_path: Path) -> Dict[str, Any]:
+    async def _parse_go_mod(self, repo_path: Path) -> dict[str, Any]:
         """
         Parse go.mod file for module information.
 
@@ -352,7 +352,7 @@ class GoModFixer(DependencyFixer):
             )
             return {"error": str(e)}
 
-    async def check_lock_file_consistency(self, repo_path: Path) -> Dict[str, Any]:
+    async def check_lock_file_consistency(self, repo_path: Path) -> dict[str, Any]:
         """
         Check if go.sum is consistent with go.mod.
 
@@ -387,7 +387,7 @@ class GoModFixer(DependencyFixer):
             )
             return {"consistent": False, "error": str(e)}
 
-    async def clean_module_cache(self, repo_path: Path) -> Dict[str, Any]:
+    async def clean_module_cache(self, repo_path: Path) -> dict[str, Any]:
         """
         Clean Go module cache.
 

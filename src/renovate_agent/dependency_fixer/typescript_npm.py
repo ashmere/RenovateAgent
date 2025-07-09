@@ -7,7 +7,7 @@ projects using npm or yarn package managers.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import structlog
 
@@ -75,7 +75,7 @@ class TypeScriptNpmFixer(DependencyFixer):
 
         return True
 
-    async def fix_dependencies(self, repo_path: Path, branch: str) -> Dict[str, Any]:
+    async def fix_dependencies(self, repo_path: Path, branch: str) -> dict[str, Any]:
         """
         Fix dependencies using npm or yarn.
 
@@ -136,7 +136,7 @@ class TypeScriptNpmFixer(DependencyFixer):
             )
             return {"success": False, "error": f"Dependency fix failed: {e}"}
 
-    async def _run_npm_install(self, repo_path: Path) -> Dict[str, Any]:
+    async def _run_npm_install(self, repo_path: Path) -> dict[str, Any]:
         """
         Run npm install commands.
 
@@ -185,7 +185,7 @@ class TypeScriptNpmFixer(DependencyFixer):
                     "error": f"npm install/ci failed: {ci_result['stderr']}",
                 }
 
-    async def _run_yarn_install(self, repo_path: Path) -> Dict[str, Any]:
+    async def _run_yarn_install(self, repo_path: Path) -> dict[str, Any]:
         """
         Run yarn install commands.
 
@@ -230,14 +230,14 @@ class TypeScriptNpmFixer(DependencyFixer):
                     "error": f"yarn install failed: {result_update['stderr']}",
                 }
 
-    def _get_commands_run(self) -> List[str]:
+    def _get_commands_run(self) -> list[str]:
         """Get list of commands that were run."""
         if self.package_manager == "yarn":
             return ["yarn install --frozen-lockfile", "yarn install"]
         else:
             return ["npm cache clean --force", "npm install", "npm ci"]
 
-    async def get_lock_files(self) -> List[str]:
+    async def get_lock_files(self) -> list[str]:
         """
         Get list of lock files this fixer handles.
 
@@ -284,7 +284,7 @@ class TypeScriptNpmFixer(DependencyFixer):
             )
             return False
 
-    async def get_dependency_info(self, repo_path: Path) -> Dict[str, Any]:
+    async def get_dependency_info(self, repo_path: Path) -> dict[str, Any]:
         """
         Get information about project dependencies.
 
@@ -324,7 +324,7 @@ class TypeScriptNpmFixer(DependencyFixer):
             )
             return {"error": str(e)}
 
-    async def _get_outdated_packages(self, repo_path: Path) -> Dict[str, Any]:
+    async def _get_outdated_packages(self, repo_path: Path) -> dict[str, Any]:
         """
         Get information about outdated packages.
 
@@ -371,7 +371,7 @@ class TypeScriptNpmFixer(DependencyFixer):
             )
             return {"error": str(e)}
 
-    async def check_lock_file_consistency(self, repo_path: Path) -> Dict[str, Any]:
+    async def check_lock_file_consistency(self, repo_path: Path) -> dict[str, Any]:
         """
         Check if lock file is consistent with package.json.
 

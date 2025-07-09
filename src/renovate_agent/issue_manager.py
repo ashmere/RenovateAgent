@@ -8,7 +8,7 @@ about open Renovate PRs and generating human-readable reports.
 import json
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import structlog
 from github.Issue import Issue
@@ -42,7 +42,7 @@ class IssueStateManager:
         self.settings = settings
         self.dashboard_title = settings.dashboard_issue_title
         # Cache dashboard issues to prevent duplicates
-        self._dashboard_cache: Dict[str, Issue] = {}
+        self._dashboard_cache: dict[str, Issue] = {}
 
     async def get_or_create_dashboard_issue(self, repo: Repository) -> Issue:
         """
@@ -123,7 +123,7 @@ class IssueStateManager:
             ) from e
 
     async def update_dashboard_issue(
-        self, repo: Repository, pr_data: Optional[Dict[str, Any]] = None
+        self, repo: Repository, pr_data: Optional[dict[str, Any]] = None
     ) -> bool:
         """
         Update the dashboard issue with current repository state.
@@ -164,7 +164,7 @@ class IssueStateManager:
             )
             raise IssueStateError(f"Failed to update dashboard issue: {e}") from e
 
-    async def _create_initial_dashboard_data(self, repo: Repository) -> Dict[str, Any]:
+    async def _create_initial_dashboard_data(self, repo: Repository) -> dict[str, Any]:
         """
         Create initial dashboard data for a repository.
 
@@ -190,8 +190,8 @@ class IssueStateManager:
         }
 
     async def _collect_repository_data(
-        self, repo: Repository, pr_data: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, repo: Repository, pr_data: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
         """
         Collect current repository data for dashboard.
 
@@ -256,7 +256,7 @@ class IssueStateManager:
             )
             return await self._create_initial_dashboard_data(repo)
 
-    async def _extract_pr_info(self, pr: PullRequest) -> Dict[str, Any]:
+    async def _extract_pr_info(self, pr: PullRequest) -> dict[str, Any]:
         """
         Extract relevant information from a PR.
 
@@ -332,7 +332,7 @@ class IssueStateManager:
                 "error": str(e),
             }
 
-    async def _extract_existing_data(self, repo: Repository) -> Dict[str, Any]:
+    async def _extract_existing_data(self, repo: Repository) -> dict[str, Any]:
         """
         Extract existing data from current dashboard issue.
 
@@ -374,7 +374,7 @@ class IssueStateManager:
             return {}
 
     def _update_statistics(
-        self, statistics: Dict[str, Any], pr_data: Dict[str, Any]
+        self, statistics: dict[str, Any], pr_data: dict[str, Any]
     ) -> None:
         """
         Update statistics based on PR processing result.
@@ -392,7 +392,7 @@ class IssueStateManager:
         elif action == "dependency_fix_applied":
             statistics["dependency_fixes_applied"] += 1
 
-    async def _generate_dashboard_body(self, data: Dict[str, Any]) -> str:
+    async def _generate_dashboard_body(self, data: dict[str, Any]) -> str:
         """
         Generate dashboard issue body from data.
 
@@ -416,11 +416,11 @@ class IssueStateManager:
 {structured_data}
 -->
 
-<sub>This dashboard is automatically maintained by the Renovate PR Assistant. Last updated: {data.get('last_updated', 'unknown')}</sub>"""
+<sub>This dashboard is automatically maintained by the Renovate PR Assistant. Last updated: {data.get("last_updated", "unknown")}</sub>"""
 
         return body
 
-    async def _generate_human_readable_report(self, data: Dict[str, Any]) -> str:
+    async def _generate_human_readable_report(self, data: dict[str, Any]) -> str:
         """
         Generate human-readable dashboard report.
 
@@ -449,10 +449,10 @@ class IssueStateManager:
 ### 📊 Summary
 
 - **Open Renovate PRs:** {len(open_prs)}
-- **Total PRs Processed:** {stats.get('total_prs_processed', 0)}
-- **Auto-approved PRs:** {stats.get('prs_auto_approved', 0)}
-- **Dependency Fixes Applied:** {stats.get('dependency_fixes_applied', 0)}
-- **Currently Blocked:** {stats.get('blocked_prs', 0)}
+- **Total PRs Processed:** {stats.get("total_prs_processed", 0)}
+- **Auto-approved PRs:** {stats.get("prs_auto_approved", 0)}
+- **Dependency Fixes Applied:** {stats.get("dependency_fixes_applied", 0)}
+- **Currently Blocked:** {stats.get("blocked_prs", 0)}
 
 ### 🔄 Open Renovate PRs"""
 
@@ -517,7 +517,7 @@ The Renovate PR Assistant is actively monitoring this repository for Renovate PR
         return status_emojis.get(status, "❓")
 
     async def add_processed_pr_record(
-        self, repo: Repository, pr_number: int, action: str, result: Dict[str, Any]
+        self, repo: Repository, pr_number: int, action: str, result: dict[str, Any]
     ) -> bool:
         """
         Add a record of a processed PR to the dashboard.
@@ -553,7 +553,7 @@ The Renovate PR Assistant is actively monitoring this repository for Renovate PR
             )
             return False
 
-    async def _find_dashboard_issues(self, repo: Repository) -> List[Issue]:
+    async def _find_dashboard_issues(self, repo: Repository) -> list[Issue]:
         """
         Find all dashboard issues in the repository.
 
@@ -588,7 +588,7 @@ The Renovate PR Assistant is actively monitoring this repository for Renovate PR
             return []
 
     async def _close_duplicate_dashboard_issues(
-        self, repo: Repository, duplicate_issues: List[Issue]
+        self, repo: Repository, duplicate_issues: list[Issue]
     ) -> None:
         """
         Close duplicate dashboard issues.

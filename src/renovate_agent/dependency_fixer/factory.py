@@ -5,7 +5,7 @@ This module provides a factory for creating appropriate dependency fixers
 based on repository characteristics.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import structlog
 from github.Repository import Repository
@@ -36,7 +36,7 @@ class DependencyFixerFactory:
             settings: Application settings
         """
         self.settings = settings
-        self.fixers: List[DependencyFixer] = []
+        self.fixers: list[DependencyFixer] = []
         self._initialize_fixers()
 
     def _initialize_fixers(self) -> None:
@@ -108,7 +108,7 @@ class DependencyFixerFactory:
             )
             raise DependencyFixingError(f"Failed to get dependency fixer: {e}") from e
 
-    async def _analyze_repository(self, repo: Repository) -> Dict[str, Any]:
+    async def _analyze_repository(self, repo: Repository) -> dict[str, Any]:
         """
         Analyze repository to determine characteristics.
 
@@ -171,7 +171,7 @@ class DependencyFixerFactory:
             return {"files": [], "language": None}
 
     async def _can_fixer_handle_repo(
-        self, fixer: DependencyFixer, repo_info: Dict[str, Any]
+        self, fixer: DependencyFixer, repo_info: dict[str, Any]
     ) -> bool:
         """
         Check if a fixer can handle the repository.
@@ -207,7 +207,7 @@ class DependencyFixerFactory:
             )
             return False
 
-    async def get_supported_languages(self) -> List[str]:
+    async def get_supported_languages(self) -> list[str]:
         """
         Get list of supported languages.
 
@@ -219,7 +219,7 @@ class DependencyFixerFactory:
             return [lang.strip() for lang in supported_langs.split(",") if lang.strip()]
         return supported_langs.copy()
 
-    async def get_fixer_info(self) -> List[dict]:
+    async def get_fixer_info(self) -> list[dict]:
         """
         Get information about available fixers.
 

@@ -9,7 +9,7 @@ import shutil
 import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import structlog
 
@@ -32,7 +32,7 @@ class DependencyFixer(ABC):
             timeout: Maximum time to spend on dependency fixing (seconds)
         """
         self.timeout = timeout
-        self.supported_files: List[str] = []
+        self.supported_files: list[str] = []
         self.language: str = ""
 
     @abstractmethod
@@ -49,7 +49,7 @@ class DependencyFixer(ABC):
         pass
 
     @abstractmethod
-    async def fix_dependencies(self, repo_path: Path, branch: str) -> Dict[str, Any]:
+    async def fix_dependencies(self, repo_path: Path, branch: str) -> dict[str, Any]:
         """
         Fix dependencies in the repository.
 
@@ -63,7 +63,7 @@ class DependencyFixer(ABC):
         pass
 
     @abstractmethod
-    async def get_lock_files(self) -> List[str]:
+    async def get_lock_files(self) -> list[str]:
         """
         Get list of lock files this fixer handles.
 
@@ -148,7 +148,7 @@ class DependencyFixer(ABC):
             )
             return False
 
-    async def run_command(self, cmd: List[str], cwd: Path) -> Dict[str, Any]:
+    async def run_command(self, cmd: list[str], cwd: Path) -> dict[str, Any]:
         """
         Run a command in the repository.
 
@@ -209,7 +209,7 @@ class DependencyFixer(ABC):
         """
         return file_path.exists() and file_path.is_file()
 
-    async def get_changed_files(self, repo_path: Path) -> List[str]:
+    async def get_changed_files(self, repo_path: Path) -> list[str]:
         """
         Get list of changed files in the repository.
 
@@ -237,7 +237,7 @@ class DependencyFixer(ABC):
             )
             return []
 
-    async def commit_changes(self, repo_path: Path, message: str) -> Dict[str, Any]:
+    async def commit_changes(self, repo_path: Path, message: str) -> dict[str, Any]:
         """
         Commit changes to the repository.
 
@@ -296,7 +296,7 @@ class DependencyFixer(ABC):
             )
             return {"success": False, "error": str(e)}
 
-    async def push_changes(self, repo_path: Path, branch: str) -> Dict[str, Any]:
+    async def push_changes(self, repo_path: Path, branch: str) -> dict[str, Any]:
         """
         Push changes to the remote repository.
 
@@ -354,7 +354,7 @@ class DependencyFixer(ABC):
 
     async def fix_dependencies_workflow(
         self, repo_url: str, branch: str, pr_number: int
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Complete dependency fixing workflow.
 

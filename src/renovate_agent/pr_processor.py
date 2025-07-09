@@ -6,7 +6,7 @@ including automatic approval and dependency fixing.
 """
 
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 import structlog
 from github.PullRequest import PullRequest
@@ -41,8 +41,8 @@ class PRProcessor:
         self.dependency_fixer_factory = DependencyFixerFactory(settings)
 
     async def process_pr_event(
-        self, action: str, pr_data: Dict[str, Any], repo_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, action: str, pr_data: dict[str, Any], repo_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Process a pull request event.
 
@@ -135,10 +135,10 @@ class PRProcessor:
 
     async def process_check_suite_completion(
         self,
-        check_suite: Dict[str, Any],
-        pr_data: Dict[str, Any],
-        repo_data: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        check_suite: dict[str, Any],
+        pr_data: dict[str, Any],
+        repo_data: dict[str, Any],
+    ) -> dict[str, Any]:
         """
         Process check suite completion event.
 
@@ -210,7 +210,7 @@ class PRProcessor:
 
     async def _process_pr_for_approval(
         self, repo: Repository, pr: PullRequest
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Process a PR for potential approval.
 
@@ -278,7 +278,7 @@ class PRProcessor:
 
     async def _analyze_pr_checks(
         self, repo: Repository, pr: PullRequest
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Analyze the status of PR checks.
 
@@ -366,7 +366,7 @@ class PRProcessor:
             # In case of error, assume checks are pending
             return {"status": "pending", "error": str(e)}
 
-    async def _approve_pr(self, repo: Repository, pr: PullRequest) -> Dict[str, Any]:
+    async def _approve_pr(self, repo: Repository, pr: PullRequest) -> dict[str, Any]:
         """
         Approve a pull request.
 
@@ -415,7 +415,7 @@ class PRProcessor:
 
     async def _attempt_dependency_fix(
         self, repo: Repository, pr: PullRequest
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Attempt to fix dependency issues in a PR.
 
@@ -481,7 +481,7 @@ class PRProcessor:
             )
             return {"success": False, "error": str(e)}
 
-    async def get_pr_status(self, repo_name: str, pr_number: int) -> Dict[str, Any]:
+    async def get_pr_status(self, repo_name: str, pr_number: int) -> dict[str, Any]:
         """
         Get comprehensive status of a PR.
 

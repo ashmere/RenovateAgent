@@ -6,7 +6,7 @@ using Poetry package manager.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import structlog
 
@@ -73,7 +73,7 @@ class PythonPoetryFixer(DependencyFixer):
 
         return True
 
-    async def fix_dependencies(self, repo_path: Path, branch: str) -> Dict[str, Any]:
+    async def fix_dependencies(self, repo_path: Path, branch: str) -> dict[str, Any]:
         """
         Fix dependencies using Poetry.
 
@@ -125,7 +125,7 @@ class PythonPoetryFixer(DependencyFixer):
             )
             return {"success": False, "error": f"Poetry dependency fix failed: {e}"}
 
-    async def _run_poetry_lock(self, repo_path: Path) -> Dict[str, Any]:
+    async def _run_poetry_lock(self, repo_path: Path) -> dict[str, Any]:
         """
         Run poetry lock command.
 
@@ -166,7 +166,7 @@ class PythonPoetryFixer(DependencyFixer):
                     "error": f"poetry lock failed: {result_update['stderr']}",
                 }
 
-    async def _run_poetry_install(self, repo_path: Path) -> Dict[str, Any]:
+    async def _run_poetry_install(self, repo_path: Path) -> dict[str, Any]:
         """
         Run poetry install command to verify dependencies.
 
@@ -197,7 +197,7 @@ class PythonPoetryFixer(DependencyFixer):
             # as the lock file update might still be valid
             return {"success": True, "output": result["stderr"], "warning": True}
 
-    async def get_lock_files(self) -> List[str]:
+    async def get_lock_files(self) -> list[str]:
         """
         Get list of lock files this fixer handles.
 
@@ -229,7 +229,7 @@ class PythonPoetryFixer(DependencyFixer):
             logger.error("Poetry validation failed", error=str(e))
             return False
 
-    async def get_dependency_info(self, repo_path: Path) -> Dict[str, Any]:
+    async def get_dependency_info(self, repo_path: Path) -> dict[str, Any]:
         """
         Get information about project dependencies.
 
@@ -293,7 +293,7 @@ class PythonPoetryFixer(DependencyFixer):
             )
             return {"error": str(e)}
 
-    async def check_lock_file_consistency(self, repo_path: Path) -> Dict[str, Any]:
+    async def check_lock_file_consistency(self, repo_path: Path) -> dict[str, Any]:
         """
         Check if lock file is consistent with pyproject.toml.
 

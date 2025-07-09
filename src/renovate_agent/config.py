@@ -5,7 +5,7 @@ This module handles environment variables, settings validation, and configuratio
 management using Pydantic Settings for type safety and validation.
 """
 
-from typing import Any, List, Union
+from typing import Any, Union
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -39,7 +39,7 @@ class DependencyFixerConfig(BaseModel):
     """Dependency fixer configuration settings."""
 
     enabled: bool = Field(default=True, description="Enable dependency fixing")
-    supported_languages: List[str] = Field(
+    supported_languages: list[str] = Field(
         default=["python", "typescript", "go"],
         description="List of supported languages",
     )
@@ -105,7 +105,7 @@ class Settings(BaseSettings):
     enable_dependency_fixing: bool = Field(
         default=True, description="Enable dependency fixing"
     )
-    supported_languages: Union[str, List[str]] = Field(
+    supported_languages: Union[str, list[str]] = Field(
         default="python,typescript,go",
         description="Supported languages for dependency fixing (comma-separated)",
     )
@@ -133,20 +133,20 @@ class Settings(BaseSettings):
     webhook_rate_limit: int = Field(default=1000, description="Webhook rate limit")
 
     # Security
-    allowed_origins: Union[str, List[str]] = Field(
+    allowed_origins: Union[str, list[str]] = Field(
         default="https://github.com",
         description="Allowed CORS origins (comma-separated)",
     )
     enable_cors: bool = Field(default=True, description="Enable CORS")
 
     # Repository Management
-    github_repository_allowlist: Union[str, List[str]] = Field(
+    github_repository_allowlist: Union[str, list[str]] = Field(
         default="",
         description="Optional allowlist of repositories to monitor "
         "(comma-separated repo names without org prefix). "
         "If empty, monitors all repos in org.",
     )
-    github_test_repositories: Union[str, List[str]] = Field(
+    github_test_repositories: Union[str, list[str]] = Field(
         default="",
         description="Test repositories for validation and testing "
         "(comma-separated full names with org/repo format)",
@@ -157,7 +157,7 @@ class Settings(BaseSettings):
 
     @field_validator("supported_languages", mode="before")
     @classmethod
-    def parse_supported_languages(cls, v: Any) -> List[str]:
+    def parse_supported_languages(cls, v: Any) -> list[str]:
         """Parse supported languages from comma-separated string or list."""
         if isinstance(v, str):
             # Handle comma-separated string format
@@ -166,14 +166,12 @@ class Settings(BaseSettings):
             # Handle list format (from JSON or direct assignment)
             return v
         else:
-            error_msg = (
-                f"supported_languages must be a string or list, " f"got {type(v)}"
-            )
+            error_msg = f"supported_languages must be a string or list, got {type(v)}"
             raise ValueError(error_msg)
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
-    def parse_allowed_origins(cls, v: Any) -> List[str]:
+    def parse_allowed_origins(cls, v: Any) -> list[str]:
         """Parse allowed origins from comma-separated string or list."""
         if isinstance(v, str):
             # Handle comma-separated string format
@@ -182,12 +180,12 @@ class Settings(BaseSettings):
             # Handle list format (from JSON or direct assignment)
             return v
         else:
-            error_msg = f"allowed_origins must be a string or list, " f"got {type(v)}"
+            error_msg = f"allowed_origins must be a string or list, got {type(v)}"
             raise ValueError(error_msg)
 
     @field_validator("github_repository_allowlist", mode="before")
     @classmethod
-    def parse_repository_allowlist(cls, v: Any) -> List[str]:
+    def parse_repository_allowlist(cls, v: Any) -> list[str]:
         """Parse repository allowlist from comma-separated string or list."""
         if isinstance(v, str):
             if not v.strip():
@@ -197,14 +195,13 @@ class Settings(BaseSettings):
             return v
         else:
             error_msg = (
-                f"github_repository_allowlist must be a string or list, "
-                f"got {type(v)}"
+                f"github_repository_allowlist must be a string or list, got {type(v)}"
             )
             raise ValueError(error_msg)
 
     @field_validator("github_test_repositories", mode="before")
     @classmethod
-    def parse_test_repositories(cls, v: Any) -> List[str]:
+    def parse_test_repositories(cls, v: Any) -> list[str]:
         """Parse test repositories from comma-separated string or list."""
         if isinstance(v, str):
             if not v.strip():
@@ -214,13 +211,13 @@ class Settings(BaseSettings):
             return v
         else:
             error_msg = (
-                f"github_test_repositories must be a string or list, " f"got {type(v)}"
+                f"github_test_repositories must be a string or list, got {type(v)}"
             )
             raise ValueError(error_msg)
 
     @field_validator("supported_languages")
     @classmethod
-    def validate_supported_languages(cls, v: List[str]) -> List[str]:
+    def validate_supported_languages(cls, v: list[str]) -> list[str]:
         """Validate supported languages list."""
         allowed_languages = {"python", "typescript", "javascript", "go"}
         for lang in v:
@@ -318,7 +315,7 @@ class Settings(BaseSettings):
         # Check if repository is in allowlist
         return repo_name in self.github_repository_allowlist
 
-    def get_test_repositories(self) -> List[str]:
+    def get_test_repositories(self) -> list[str]:
         """Get list of test repositories."""
         test_repos = self.github_test_repositories
         if isinstance(test_repos, str):
