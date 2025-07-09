@@ -116,6 +116,7 @@ venv.bak/
 .env.development
 .env.production
 .env.staging
+docker-test.env
 
 # Spyder project settings
 .spyderproject
