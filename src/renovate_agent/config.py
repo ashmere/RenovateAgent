@@ -87,6 +87,40 @@ class PollingConfig(BaseModel):
         default=5, description="Number of repositories to poll concurrently"
     )
 
+    # Phase 2 optimizations
+    enable_adaptive_intervals: bool = Field(
+        default=True, description="Enable adaptive polling intervals based on activity"
+    )
+    enable_delta_detection: bool = Field(
+        default=True, description="Enable delta-based state change detection"
+    )
+    enable_caching: bool = Field(
+        default=True, description="Enable intelligent caching layer"
+    )
+    cache_ttl_seconds: int = Field(
+        default=300, description="Default cache TTL in seconds"
+    )
+    metrics_collection: bool = Field(
+        default=True, description="Enable comprehensive metrics collection"
+    )
+
+    # Legacy compatibility properties
+    @property
+    def interval_minutes(self) -> float:
+        """Get interval in minutes for backward compatibility."""
+        return self.base_interval_seconds / 60.0
+
+    @property
+    def max_concurrent_repositories(self) -> int:
+        """Get max concurrent repos for backward compatibility."""
+        return self.concurrent_repo_polling
+
+    @property
+    def repositories(self) -> list[str]:
+        """Get repositories list from settings for backward compatibility."""
+        # This will be populated by the orchestrator from Settings
+        return []
+
 
 class DashboardConfig(BaseModel):
     """Dashboard configuration settings."""

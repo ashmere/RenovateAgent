@@ -1,12 +1,10 @@
 """
 Polling orchestrator for the Renovate PR Assistant.
 
-This module implements the main polling loop that periodically checks
-repositories for changes and processes them using existing PR logic.
+This module manages periodic repository scanning and PR discovery through GitHub API queries.
 """
 
 import asyncio
-import time
 from datetime import datetime
 from typing import Any
 
@@ -21,31 +19,78 @@ from .state_tracker import PollingStateTracker
 logger = structlog.get_logger(__name__)
 
 
-class PollingResult:
-    """Result of a single polling cycle."""
+class RepositoryActivity:
+    """Tracks activity metrics for a repository."""
 
-    def __init__(
-        self,
-        repository: str,
-        changes_detected: int,
-        api_calls_used: int,
-        poll_duration: float,
-        errors: list[str] | None = None,
-    ):
-        self.repository = repository
-        self.changes_detected = changes_detected
-        self.api_calls_used = api_calls_used
-        self.poll_duration = poll_duration
-        self.errors = errors or []
-        self.timestamp = datetime.now()
+    def __init__(self, repo_name: str):
+        self.repo_name = repo_name
+        self.last_poll_time: datetime | None = None
+        self.last_renovate_pr_count = 0
+        self.consecutive_empty_polls = 0
+        self.total_polls = 0
+        self.total_prs_found = 0
+        self.last_activity_detected: datetime | None = None
+        self.current_interval_minutes = 2  # Start with default interval
+        self.activity_score = 0.0  # 0.0 = inactive, 1.0 = highly active
+
+    def update_after_poll(self, renovate_pr_count: int, poll_time: datetime) -> None:
+        """Update activity metrics after a polling cycle."""
+        self.last_poll_time = poll_time
+        self.total_polls += 1
+
+        if renovate_pr_count > 0:
+            self.total_prs_found += renovate_pr_count
+            self.consecutive_empty_polls = 0
+            self.last_activity_detected = poll_time
+
+            # Increase activity score for new PRs
+            if renovate_pr_count > self.last_renovate_pr_count:
+                self.activity_score = min(1.0, self.activity_score + 0.3)
+        else:
+            self.consecutive_empty_polls += 1
+            # Decrease activity score for empty polls
+            self.activity_score = max(0.0, self.activity_score - 0.1)
+
+        self.last_renovate_pr_count = renovate_pr_count
+        self._calculate_optimal_interval()
+
+    def _calculate_optimal_interval(self) -> None:
+        """Calculate optimal polling interval based on activity patterns."""
+        base_interval = 2  # 2 minutes base
+        max_interval = 15  # 15 minutes maximum
+        min_interval = 1  # 1 minute minimum
+
+        if self.activity_score >= 0.8:
+            # High activity: poll more frequently
+            self.current_interval_minutes = min_interval
+        elif self.activity_score >= 0.5:
+            # Medium activity: standard polling
+            self.current_interval_minutes = base_interval
+        elif self.activity_score >= 0.2:
+            # Low activity: slower polling
+            self.current_interval_minutes = min(5, base_interval * 2)
+        else:
+            # Very low activity: slowest polling
+            if self.consecutive_empty_polls >= 5:
+                self.current_interval_minutes = min(max_interval, base_interval * 4)
+            else:
+                self.current_interval_minutes = min(10, base_interval * 3)
+
+    def get_next_poll_delay(self) -> float:
+        """Get the delay until next poll in seconds."""
+        return self.current_interval_minutes * 60.0
+
+    def should_prioritize(self) -> bool:
+        """Check if this repository should be prioritized for polling."""
+        return self.activity_score > 0.5 or self.consecutive_empty_polls == 0
 
 
 class PollingOrchestrator:
     """
-    Main polling orchestrator for repository monitoring.
+    Orchestrates polling operations across multiple repositories.
 
-    This class manages the polling loop, coordinates state tracking, and
-    processes detected changes using the existing PR processing logic.
+    This class manages the periodic scanning of repositories for Renovate PRs,
+    with intelligent scheduling and rate limiting.
     """
 
     def __init__(
@@ -66,328 +111,409 @@ class PollingOrchestrator:
         self.pr_processor = pr_processor
         self.settings = settings
         self.config = settings.polling_config
-        self.state_tracker = PollingStateTracker(github_client, settings)
+
+        # Initialize components
         self.rate_limiter = RateLimitManager(github_client, settings)
+        self.state_tracker = PollingStateTracker(github_client, settings)
 
-        self._running = False
-        self._consecutive_failures = 0
-        self._repositories: list[str] = []
+        # Polling state
+        self.is_running_flag = False
+        self.polling_task: asyncio.Task[None] | None = None
 
-    async def start_polling(self) -> None:
-        """Start the main polling loop."""
-        if self._running:
-            logger.warning("Polling is already running")
-            return
+        # Repository activity tracking
+        self.repository_activities: dict[str, RepositoryActivity] = {}
 
-        if not self.config.enabled:
-            logger.info("Polling is disabled in configuration")
-            return
-
-        logger.info(
-            "Starting polling orchestrator",
-            interval_seconds=self.config.base_interval_seconds,
-            adaptive_polling=self.config.adaptive_polling,
-        )
-
-        self._running = True
-        self._consecutive_failures = 0
-
-        # Initialize repositories list
-        await self._refresh_repositories()
-
-        try:
-            while self._running:
-                cycle_start = time.time()
-
-                try:
-                    await self._poll_cycle()
-                    self._consecutive_failures = 0
-
-                except Exception as e:
-                    self._consecutive_failures += 1
-                    logger.error(
-                        "Polling cycle failed",
-                        error=str(e),
-                        consecutive_failures=self._consecutive_failures,
-                    )
-
-                    max_failures = self.config.max_consecutive_failures
-                    if self._consecutive_failures >= max_failures:
-                        logger.error(
-                            "Maximum consecutive failures reached, stopping polling",
-                            max_failures=max_failures,
-                        )
-                        break
-
-                # Calculate next interval and sleep
-                if self._running:  # Check if still running after potential stop
-                    interval = await self._calculate_next_interval()
-                    cycle_duration = time.time() - cycle_start
-                    sleep_time = max(0, interval - cycle_duration)
-
-                    logger.debug(
-                        "Polling cycle completed",
-                        cycle_duration_seconds=cycle_duration,
-                        next_interval_seconds=sleep_time,
-                        repositories_checked=len(self._repositories),
-                    )
-
-                    if sleep_time > 0:
-                        await asyncio.sleep(sleep_time)
-
-        finally:
-            self._running = False
-            logger.info("Polling orchestrator stopped")
-
-    async def stop_polling(self) -> None:
-        """Stop the polling loop."""
-        logger.info("Stopping polling orchestrator")
-        self._running = False
+        # Adaptive polling settings
+        self.adaptive_enabled = settings.polling_config.enable_adaptive_intervals
+        self.global_backoff_multiplier = 1.0
+        self.last_rate_limit_hit: datetime | None = None
 
     def is_running(self) -> bool:
-        """Check if polling is currently running."""
-        return self._running
+        """Check if polling is currently active."""
+        return self.is_running_flag
 
-    async def _poll_cycle(self) -> None:
-        """Execute a single polling cycle."""
-        if not self._repositories:
-            await self._refresh_repositories()
-
-        if not self._repositories:
-            logger.warning("No repositories to monitor")
+    async def start_polling(self) -> None:
+        """Start the polling process."""
+        if self.is_running_flag:
+            logger.warning("Polling already running")
             return
 
-        # Check rate limits before proceeding
-        rate_limit_status = await self.rate_limiter.check_rate_limits()
-        if rate_limit_status.should_slow_down:
-            logger.warning(
-                "Rate limit threshold reached, slowing down",
-                usage_percentage=rate_limit_status.usage_percentage,
-            )
+        self.is_running_flag = True
+        logger.info(
+            "Starting polling orchestrator",
+            adaptive_intervals=self.adaptive_enabled,
+            default_interval_minutes=self.config.interval_minutes,
+            max_concurrent_repos=self.config.max_concurrent_repositories,
+        )
 
-        # Poll repositories with concurrency control
-        semaphore = asyncio.Semaphore(self.config.concurrent_repo_polling)
+        try:
+            await self._polling_loop()
+        except asyncio.CancelledError:
+            logger.info("Polling cancelled")
+        except Exception as e:
+            logger.error("Polling failed with unexpected error", error=str(e))
+        finally:
+            self.is_running_flag = False
+
+    async def stop_polling(self) -> None:
+        """Stop the polling process."""
+        if not self.is_running_flag:
+            return
+
+        logger.info("Stopping polling orchestrator")
+        self.is_running_flag = False
+
+        if self.polling_task and not self.polling_task.done():
+            self.polling_task.cancel()
+            try:
+                await self.polling_task
+            except asyncio.CancelledError:
+                pass
+
+    async def _polling_loop(self) -> None:
+        """Main polling loop."""
+        while self.is_running_flag:
+            cycle_start = datetime.now()
+
+            logger.info("Polling cycle started", timestamp=cycle_start.isoformat())
+
+            try:
+                # Check rate limits before polling
+                rate_status = await self.rate_limiter.check_rate_limits()
+
+                if rate_status.should_slow_down:
+                    logger.warning(
+                        "Rate limit approaching, applying throttling",
+                        usage_percentage=rate_status.usage_percentage,
+                        remaining=rate_status.remaining,
+                    )
+
+                    # Apply global backoff
+                    self.global_backoff_multiplier = min(
+                        3.0, self.global_backoff_multiplier * 1.5
+                    )
+                    self.last_rate_limit_hit = cycle_start
+                else:
+                    # Gradually reduce backoff when rate limits are healthy
+                    if self.global_backoff_multiplier > 1.0:
+                        self.global_backoff_multiplier = max(
+                            1.0, self.global_backoff_multiplier * 0.9
+                        )
+
+                # Get repositories to poll
+                repositories = self._get_repositories_for_polling()
+
+                if not repositories:
+                    logger.warning("No repositories configured for polling")
+                    await asyncio.sleep(self.config.interval_minutes * 60)
+                    continue
+
+                # Process repositories with adaptive scheduling
+                await self._process_repositories_adaptive(repositories, cycle_start)
+
+                # Calculate next cycle delay
+                cycle_duration = (datetime.now() - cycle_start).total_seconds()
+                next_cycle_delay = await self._calculate_next_cycle_delay(
+                    cycle_duration
+                )
+
+                logger.info(
+                    "Polling cycle completed",
+                    duration_seconds=cycle_duration,
+                    repositories_processed=len(repositories),
+                    next_cycle_in_seconds=next_cycle_delay,
+                )
+
+                # Wait for next cycle
+                if self.is_running_flag:
+                    await asyncio.sleep(next_cycle_delay)
+
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error("Error in polling cycle", error=str(e))
+                # Wait before retrying
+                await asyncio.sleep(60)  # 1 minute error backoff
+
+    async def _process_repositories_adaptive(
+        self, repositories: list[str], cycle_start: datetime
+    ) -> None:
+        """Process repositories with adaptive intervals and prioritization."""
+
+        # Separate repositories by priority if adaptive mode is enabled
+        if self.adaptive_enabled:
+            priority_repos = []
+            regular_repos = []
+
+            for repo_name in repositories:
+                activity = self._get_or_create_activity(repo_name)
+
+                # Check if enough time has passed for this repository
+                if activity.last_poll_time:
+                    time_since_last = (
+                        cycle_start - activity.last_poll_time
+                    ).total_seconds()
+                    required_interval = activity.get_next_poll_delay()
+
+                    if time_since_last < required_interval:
+                        continue  # Skip this repository for now
+
+                if activity.should_prioritize():
+                    priority_repos.append(repo_name)
+                else:
+                    regular_repos.append(repo_name)
+
+            # Process priority repositories first
+            if priority_repos:
+                logger.info(
+                    "Processing priority repositories",
+                    count=len(priority_repos),
+                    repositories=priority_repos,
+                )
+                await self._process_repository_batch(priority_repos, cycle_start)
+
+            # Process regular repositories
+            if regular_repos:
+                logger.info(
+                    "Processing regular repositories",
+                    count=len(regular_repos),
+                )
+                await self._process_repository_batch(regular_repos, cycle_start)
+        else:
+            # Process all repositories together in non-adaptive mode
+            await self._process_repository_batch(repositories, cycle_start)
+
+    async def _process_repository_batch(
+        self, repositories: list[str], cycle_start: datetime
+    ) -> None:
+        """Process a batch of repositories concurrently."""
+
+        # Limit concurrency
+        semaphore = asyncio.Semaphore(self.config.max_concurrent_repositories)
+
+        async def process_single_repo(repo_name: str) -> None:
+            async with semaphore:
+                await self._process_repository_prs(repo_name, cycle_start)
+
+        # Process repositories concurrently
         tasks = [
-            self._poll_repository_with_semaphore(semaphore, repo)
-            for repo in self._repositories
+            asyncio.create_task(process_single_repo(repo_name))
+            for repo_name in repositories
         ]
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Process results
-        total_changes = 0
-        total_errors = 0
-
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.error(
-                    "Repository polling failed",
-                    repository=self._repositories[i],
-                    error=str(result),
-                )
-                total_errors += 1
-            elif isinstance(result, PollingResult):
-                total_changes += result.changes_detected
-                if result.errors:
-                    total_errors += len(result.errors)
-
-        logger.info(
-            "Polling cycle summary",
-            repositories_polled=len(self._repositories),
-            total_changes_detected=total_changes,
-            total_errors=total_errors,
-        )
-
-    async def _poll_repository_with_semaphore(
-        self, semaphore: asyncio.Semaphore, repo_name: str
-    ) -> PollingResult:
-        """Poll a single repository with concurrency control."""
-        async with semaphore:
-            return await self._poll_repository(repo_name)
-
-    async def _poll_repository(self, repo_name: str) -> PollingResult:
-        """
-        Poll a single repository for changes.
-
-        Args:
-            repo_name: Full repository name (org/repo)
-
-        Returns:
-            Polling result
-        """
-        start_time = time.time()
-        changes_detected = 0
-        errors = []
-        api_calls_start = await self.rate_limiter.get_current_usage()
-
+    async def _process_repository_prs(
+        self, repo_name: str, poll_time: datetime
+    ) -> None:
+        """Process a single repository for Renovate PRs."""
         try:
-            logger.debug("Polling repository", repository=repo_name)
+            activity = self._get_or_create_activity(repo_name)
 
-            # Get repository object
+            logger.debug(
+                "Processing repository",
+                repository=repo_name,
+                activity_score=activity.activity_score,
+                consecutive_empty_polls=activity.consecutive_empty_polls,
+            )
+
+            # Get the repository
             repo = await self.github_client.get_repo(repo_name)
 
-            # Check if repository should be processed
-            if not self.github_client.should_process_repository(repo):
-                return PollingResult(
-                    repository=repo_name,
-                    changes_detected=0,
-                    api_calls_used=0,
-                    poll_duration=time.time() - start_time,
-                )
+            # Get open pull requests
+            open_prs = repo.get_pulls(state="open")
+            renovate_prs = [
+                pr for pr in open_prs if await self.github_client.is_renovate_pr(pr)
+            ]
 
-            # Get last poll time for this repository
-            last_poll = await self.state_tracker.get_last_poll_time(repo_name)
+            logger.debug(
+                "Found PRs in repository",
+                repository=repo_name,
+                total_open_prs=len(list(open_prs)),
+                renovate_prs=len(renovate_prs),
+            )
 
-            # Get PRs updated since last poll
-            prs = await self._get_updated_prs(repo, last_poll)
+            # Use delta detection to identify what needs processing
+            pr_changes = await self.state_tracker.detect_pr_changes(
+                repo_name, renovate_prs
+            )
 
-            for pr_data in prs:
-                try:
-                    # Check if this is a Renovate PR
-                    pr = await self.github_client.get_pr(repo, pr_data["number"])
-                    if await self.github_client.is_renovate_pr(pr):
-                        # Process the PR using existing logic
-                        await self._process_discovered_pr(repo, pr_data)
-                        changes_detected += 1
+            # Filter to only process new and updated PRs
+            prs_to_process = [
+                (pr, change_type)
+                for pr, change_type in pr_changes
+                if change_type in ("new", "updated")
+            ]
 
-                except Exception as e:
-                    error_msg = f"Failed to process PR {pr_data['number']}: {e}"
-                    errors.append(error_msg)
-                    logger.error(error_msg, repository=repo_name)
+            logger.info(
+                "Delta detection results",
+                repository=repo_name,
+                total_renovate_prs=len(renovate_prs),
+                new_prs=len([c for c in pr_changes if c[1] == "new"]),
+                updated_prs=len([c for c in pr_changes if c[1] == "updated"]),
+                unchanged_prs=len([c for c in pr_changes if c[1] == "unchanged"]),
+                processing_count=len(prs_to_process),
+            )
 
-            # Update last poll time
-            await self.state_tracker.update_last_poll_time(repo_name, datetime.now())
+            # Update activity tracking based on total renovate PRs found
+            activity.update_after_poll(len(renovate_prs), poll_time)
+
+            # Process each PR that needs processing
+            for pr, change_type in prs_to_process:
+                if await self._should_process_pr(pr):
+                    logger.info(
+                        "Processing PR",
+                        repository=repo_name,
+                        pr_number=pr.number,
+                        title=pr.title,
+                        change_type=change_type,
+                    )
+
+                    # Process the PR using the existing processor
+                    await self.pr_processor._process_pr_for_approval(
+                        repo, pr, f"polling_discovery_{change_type}"
+                    )
+
+                    # Mark as processed
+                    await self.state_tracker.mark_pr_processed(
+                        repo_name, str(pr.number)
+                    )
+
+            # Update polling state
+            await self.state_tracker.update_last_poll_time(repo_name, poll_time)
 
         except Exception as e:
-            error_msg = f"Repository polling failed: {e}"
-            errors.append(error_msg)
-            logger.error(error_msg, repository=repo_name)
+            logger.error(
+                "Failed to process repository",
+                repository=repo_name,
+                error=str(e),
+            )
 
-        api_calls_end = await self.rate_limiter.get_current_usage()
-        api_calls_used = max(0, api_calls_end - api_calls_start)
+            # Update activity to reflect error
+            activity = self._get_or_create_activity(repo_name)
+            activity.update_after_poll(0, poll_time)
 
-        return PollingResult(
-            repository=repo_name,
-            changes_detected=changes_detected,
-            api_calls_used=api_calls_used,
-            poll_duration=time.time() - start_time,
-            errors=errors,
+    def _get_or_create_activity(self, repo_name: str) -> RepositoryActivity:
+        """Get or create activity tracking for a repository."""
+        if repo_name not in self.repository_activities:
+            self.repository_activities[repo_name] = RepositoryActivity(repo_name)
+        return self.repository_activities[repo_name]
+
+    async def _calculate_next_cycle_delay(self, cycle_duration: float) -> float:
+        """Calculate delay until next polling cycle with adaptive logic."""
+        if not self.adaptive_enabled:
+            # Non-adaptive mode: use fixed interval
+            base_delay = self.config.interval_minutes * 60.0
+            return (
+                max(30.0, base_delay - cycle_duration) * self.global_backoff_multiplier
+            )
+
+        # Adaptive mode: calculate based on repository activities
+        if not self.repository_activities:
+            return self.config.interval_minutes * 60.0 * self.global_backoff_multiplier
+
+        # Find the shortest interval among active repositories
+        min_interval = float("inf")
+        for activity in self.repository_activities.values():
+            if activity.last_poll_time:
+                next_poll_delay = activity.get_next_poll_delay()
+                time_since_last = (
+                    datetime.now() - activity.last_poll_time
+                ).total_seconds()
+                remaining_delay = max(0, next_poll_delay - time_since_last)
+                min_interval = min(min_interval, remaining_delay)
+
+        if min_interval == float("inf"):
+            min_interval = self.config.interval_minutes * 60.0
+
+        # Apply global backoff and ensure minimum delay
+        final_delay = max(30.0, min_interval) * self.global_backoff_multiplier
+
+        logger.debug(
+            "Calculated next cycle delay",
+            min_interval=min_interval,
+            global_backoff=self.global_backoff_multiplier,
+            final_delay=final_delay,
         )
 
-    async def _get_updated_prs(
-        self, repo: Any, since: datetime | None
-    ) -> list[dict[str, Any]]:
-        """
-        Get PRs updated since the last poll.
+        return final_delay
 
-        Args:
-            repo: Repository object
-            since: Last poll timestamp
+    def _get_repositories_for_polling(self) -> list[str]:
+        """Get list of repositories to poll."""
+        # Use polling-specific repositories if configured
+        if self.config.repositories:
+            return self.config.repositories
 
-        Returns:
-            List of PR data dictionaries
-        """
-        # For the basic implementation, get all open PRs
-        # In the future, we can optimize this with GitHub API filters
+        # Fall back to test repositories
+        test_repos = self.settings.get_test_repositories()
+        if test_repos:
+            return test_repos
+
+        logger.warning("No repositories configured for polling")
+        return []
+
+    async def _should_process_pr(self, pr: Any) -> bool:
+        """Check if a PR should be processed."""
         try:
-            # Get all open pull requests
-            pulls = repo.get_pulls(state="open", sort="updated", direction="desc")
+            # Check if already processed
+            is_processed = await self.state_tracker.is_pr_processed(
+                pr.base.repo.full_name, str(pr.number)
+            )
 
-            pr_list = []
-            for pr in pulls:
-                # Convert to dict format similar to webhook data
-                pr_dict = {
-                    "number": pr.number,
-                    "title": pr.title,
-                    "updated_at": pr.updated_at,
-                    "state": pr.state,
-                    "user": {"login": pr.user.login},
-                    "head": {"sha": pr.head.sha},
-                }
+            if is_processed:
+                logger.debug(
+                    "PR already processed, skipping",
+                    repository=pr.base.repo.full_name,
+                    pr_number=pr.number,
+                )
+                return False
 
-                # If we have a since timestamp, filter by update time
-                if since is None or pr.updated_at > since:
-                    pr_list.append(pr_dict)
+            # Basic checks
+            if pr.state != "open":
+                return False
 
-            return pr_list
+            if pr.draft:
+                logger.debug(
+                    "Skipping draft PR",
+                    repository=pr.base.repo.full_name,
+                    pr_number=pr.number,
+                )
+                return False
+
+            return True
 
         except Exception as e:
             logger.error(
-                "Failed to get updated PRs",
-                repository=repo.full_name,
+                "Error checking if PR should be processed",
+                pr_number=pr.number,
                 error=str(e),
             )
-            return []
+            return False
 
-    async def _process_discovered_pr(self, repo: Any, pr_data: dict[str, Any]) -> None:
-        """
-        Process a discovered PR using existing processing logic.
+    def get_activity_summary(self) -> dict[str, Any]:
+        """Get summary of repository activities for monitoring."""
+        if not self.repository_activities:
+            return {}
 
-        Args:
-            repo: Repository object
-            pr_data: PR data dictionary
-        """
-        try:
-            # Use existing PR processor logic
-            result = await self.pr_processor.process_pr_event(
-                action="opened",  # Treat discovered PRs as "opened" events
-                pr_data=pr_data,
-                repo_data={"full_name": repo.full_name},
-            )
+        summary = {}
+        for repo_name, activity in self.repository_activities.items():
+            summary[repo_name] = {
+                "activity_score": activity.activity_score,
+                "current_interval_minutes": activity.current_interval_minutes,
+                "consecutive_empty_polls": activity.consecutive_empty_polls,
+                "total_polls": activity.total_polls,
+                "total_prs_found": activity.total_prs_found,
+                "last_poll": (
+                    activity.last_poll_time.isoformat()
+                    if activity.last_poll_time
+                    else None
+                ),
+                "last_activity": (
+                    activity.last_activity_detected.isoformat()
+                    if activity.last_activity_detected
+                    else None
+                ),
+            }
 
-            logger.info(
-                "Processed discovered PR",
-                repository=repo.full_name,
-                pr_number=pr_data["number"],
-                result=result.get("message", "unknown"),
-            )
-
-        except Exception as e:
-            logger.error(
-                "Failed to process discovered PR",
-                repository=repo.full_name,
-                pr_number=pr_data["number"],
-                error=str(e),
-            )
-
-    async def _refresh_repositories(self) -> None:
-        """Refresh the list of repositories to monitor."""
-        try:
-            org_repos = await self.github_client.get_organization_repositories(
-                self.settings.github_organization
-            )
-
-            # Filter repositories based on configuration
-            filtered_repos = []
-            for repo in org_repos:
-                if self.settings.should_process_repository(repo.name, repo.archived):
-                    filtered_repos.append(repo.full_name)
-
-            self._repositories = filtered_repos
-
-            logger.info(
-                "Refreshed repository list",
-                total_repositories=len(filtered_repos),
-                organization=self.settings.github_organization,
-            )
-
-        except Exception as e:
-            logger.error(
-                "Failed to refresh repository list",
-                organization=self.settings.github_organization,
-                error=str(e),
-            )
-
-    async def _calculate_next_interval(self) -> int:
-        """
-        Calculate the next polling interval.
-
-        Returns:
-            Next interval in seconds
-        """
-        if not self.config.adaptive_polling:
-            return self.config.base_interval_seconds
-
-        # For basic implementation, return base interval
-        # Advanced adaptive logic will be implemented in Phase 2
-        return self.config.base_interval_seconds
+        return summary
