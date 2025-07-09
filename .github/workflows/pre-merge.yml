@@ -35,9 +35,14 @@ jobs:
           poetry install --no-interaction
           poetry show
 
+      - name: Install pre-commit hooks
+        run: |
+          poetry run pre-commit install --install-hooks
+
       - name: Run pre-commit hooks
         run: |
           poetry run pre-commit run --all-files
+        timeout-minutes: 5
 
   test:
     runs-on: ubuntu-latest
