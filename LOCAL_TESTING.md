@@ -58,6 +58,52 @@ If you prefer manual setup or automated setup fails:
    poetry run python scripts/local_setup.py
    ```
 
+### Option 3: Docker Testing
+
+For testing in a containerized environment similar to production:
+
+```bash
+# 1. Set up environment file (if not already done)
+poetry install
+poetry run python scripts/local_setup.py
+
+# 2. Build and run with Docker
+docker build -t renovate-agent:test .
+docker run --rm -p 8000:8000 --env-file .env renovate-agent:test
+
+# 3. Or use Docker Compose (recommended)
+docker-compose up --build
+
+# 4. Test the containerized application
+# In another terminal:
+poetry run python scripts/test_webhook.py
+```
+
+**Docker Testing Benefits:**
+- ✅ **Production parity**: Tests the exact same container used in production
+- ✅ **Isolation**: Clean environment independent of local Python setup
+- ✅ **Multi-stage build**: Optimized image size and security
+- ✅ **Easy cleanup**: `docker-compose down` removes everything
+
+**Docker Testing Requirements:**
+- Docker installed (or Colima on macOS)
+- `.env` file configured (same as poetry method)
+- Port 8000 available
+
+### Option 4: Development with Docker Volume Mount
+
+For development with live code reloading in Docker:
+
+```bash
+# Modify docker-compose.yml to add development volume mount
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+# Or manually with volume mount
+docker run --rm -p 8000:8000 --env-file .env \
+  -v $(pwd)/src:/app/src \
+  renovate-agent:test
+```
+
 ## Testing Scripts Overview
 
 The project includes several testing scripts to validate functionality:
@@ -241,6 +287,8 @@ Tests actual Renovate PR processing logic:
 
 ## Development Workflow
 
+### Poetry-based Development (Default)
+
 Typical development session:
 
 ```bash
@@ -262,6 +310,50 @@ poetry run pre-commit run --all-files  # Check code quality
 
 # 5. Re-test
 poetry run python scripts/test_webhook.py  # Verify changes work
+```
+
+### Docker-based Development
+
+For development with Docker containers:
+
+```bash
+# 1. Setup (once)
+poetry install  # Just for scripts
+poetry run python scripts/local_setup.py
+
+# 2. Validate configuration
+poetry run python scripts/test_github_connection.py
+poetry run python scripts/test_target_repos.py
+
+# 3. Development cycle with Docker
+docker-compose up --build  # Start server in container
+poetry run python scripts/test_webhook.py  # Test in another terminal
+
+# 4. Code changes with live reload (if volume mounted)
+# Make your changes... (container will restart automatically)
+poetry run python -m pytest tests/  # Run tests on host
+poetry run pre-commit run --all-files  # Check code quality
+
+# 5. Re-test
+poetry run python scripts/test_webhook.py  # Verify changes work
+
+# 6. Clean up
+docker-compose down  # Stop and remove containers
+```
+
+### Hybrid Development
+
+You can also mix approaches based on your needs:
+
+```bash
+# Use Docker for server, Poetry for scripts
+docker-compose up --build  # Run application in container
+poetry run python scripts/test_webhook.py  # Run scripts on host
+poetry run python -m pytest tests/  # Run tests on host
+
+# Or vice versa (useful for debugging)
+poetry run python -m renovate_agent.main  # Run application on host
+docker run --rm curlimages/curl:latest curl http://host.docker.internal:8000/health  # Test from container
 ```
 
 ## What You Get
@@ -287,14 +379,19 @@ Before deploying to production, ensure:
 
 ## Differences from Production
 
-| Aspect | Local Testing | Production |
-|--------|---------------|------------|
-| **Authentication** | Personal Access Token | GitHub App |
-| **Rate Limits** | 5,000/hour (PAT) | 5,000/hour per installation |
-| **Permissions** | All repos user can access | Fine-grained per installation |
-| **Webhook Security** | ✅ Enabled (same as prod) | ✅ Enabled |
-| **State Storage** | ✅ GitHub Issues (same) | ✅ GitHub Issues |
-| **Database** | ❌ None (stateless) | ❌ None (stateless) |
+| Aspect | Poetry (Local) | Docker (Local) | Production |
+|--------|----------------|----------------|------------|
+| **Authentication** | Personal Access Token | Personal Access Token | GitHub App |
+| **Container** | Host Python | ✅ Ubuntu 24.04 + Python 3.13 | ✅ Ubuntu 24.04 + Python 3.13 |
+| **Rate Limits** | 5,000/hour (PAT) | 5,000/hour (PAT) | 5,000/hour per installation |
+| **Permissions** | All repos user can access | All repos user can access | Fine-grained per installation |
+| **Webhook Security** | ✅ Enabled (same as prod) | ✅ Enabled (same as prod) | ✅ Enabled |
+| **State Storage** | ✅ GitHub Issues (same) | ✅ GitHub Issues (same) | ✅ GitHub Issues |
+| **Database** | ❌ None (stateless) | ❌ None (stateless) | ❌ None (stateless) |
+| **Build Process** | Poetry install | ✅ Multi-stage Docker build | ✅ Multi-stage Docker build |
+| **Environment** | Host dependencies | ✅ Isolated container | ✅ Isolated container |
+
+**Recommendation**: Use **Docker testing** for the highest production parity, especially before deployment.
 
 ## Next Steps
 

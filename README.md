@@ -1,7 +1,7 @@
 # Renovate PR Assistant
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.2.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.4.1-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/python-3.12%2B-blue.svg" alt="Python Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
@@ -89,6 +89,8 @@ graph TD
    ```
 
 4. **Run the application**
+
+   **Option A: Poetry (Development)**
    ```bash
    # For production with GitHub App
    poetry run python -m renovate_agent.main
@@ -97,6 +99,28 @@ graph TD
    # For local development with Personal Access Token
    # See LOCAL_TESTING.md for simplified setup
    poetry run python -m renovate_agent.main
+   ```
+
+   **Option B: Docker (Local Testing)**
+   ```bash
+   # Build and run with Docker
+   docker build -t renovate-agent .
+   docker run --rm -p 8000:8000 --env-file .env renovate-agent
+
+   # Or use Docker Compose for full setup
+   docker-compose up --build
+   ```
+
+   **Option C: Docker Compose (Recommended for Local Testing)**
+   ```bash
+   # Start the application with all dependencies
+   docker-compose up --build
+
+   # Run in background
+   docker-compose up -d --build
+
+   # View logs
+   docker-compose logs -f
    ```
 
 ## ⚙️ Configuration
@@ -247,33 +271,57 @@ Secure handling of GitHub App private keys with proper rotation practices.
 ## 🚀 Deployment
 
 ### Docker
-```dockerfile
-FROM python:3.13-slim
 
-WORKDIR /app
+The project includes a production-ready multi-stage Dockerfile using Ubuntu 24.04:
 
-# Install Poetry
-RUN pip install poetry
-ENV POETRY_VENV_IN_PROJECT=1
+```bash
+# Build the image
+docker build -t renovate-agent:latest .
 
-# Copy Poetry configuration
-COPY pyproject.toml poetry.lock ./
-RUN poetry install --only=main
+# Run with environment file
+docker run --rm -p 8000:8000 --env-file .env renovate-agent:latest
 
-# Copy source code
-COPY src/ ./src/
-RUN poetry install --only-root
-
-EXPOSE 8000
-CMD ["poetry", "run", "python", "-m", "renovate_agent.main"]
+# Run with individual environment variables
+docker run --rm -p 8000:8000 \
+  -e GITHUB_ORGANIZATION=your-org \
+  -e GITHUB_APP_ID=your-app-id \
+  -e GITHUB_APP_PRIVATE_KEY_PATH=/app/private-key.pem \
+  -v /path/to/private-key.pem:/app/private-key.pem \
+  renovate-agent:latest
 ```
 
+### Docker Compose
+
+For local development and testing, use the included `docker-compose.yml`:
+
+```bash
+# Start services
+docker-compose up --build
+
+# Start in background
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f renovate-agent
+
+# Stop services
+docker-compose down
+```
+
+The Docker Compose setup includes:
+- **Multi-stage build**: Optimized for both development and production
+- **Environment configuration**: Loads from `.env` file
+- **Port mapping**: Exposes application on port 8000
+- **Volume mounting**: For development with live code reloading
+- **Health checks**: Built-in container health monitoring
+
 ### Production Considerations
-- Use PostgreSQL for production databases
-- Deploy behind a reverse proxy (nginx)
-- Enable SSL/TLS certificates
-- Set up monitoring and alerting
-- Configure log aggregation
+- **Stateless Design**: No database required (uses GitHub Issues as state store)
+- **Resource Requirements**: Minimal - single container deployment
+- **Load Balancing**: Can run multiple instances behind a load balancer
+- **Environment Variables**: Secure injection of secrets and configuration
+- **Health Monitoring**: Built-in `/health` endpoint for container orchestration
+- **Logging**: Structured JSON logging for centralized log aggregation
 
 ## 🧪 Testing
 
