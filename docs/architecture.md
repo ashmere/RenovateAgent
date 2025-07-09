@@ -2,10 +2,10 @@
 
 ## Overview
 
-RenovateAgent is an intelligent automation system that streamlines dependency management by automatically reviewing and managing [Renovate](https://github.com/renovatebot/renovate) pull requests across GitHub organizations. The system focuses on automated PR approval, dependency fixing, and repository health monitoring to reduce manual intervention in dependency updates.
+RenovateAgent is an intelligent automation system that streamlines dependency management by automatically reviewing and managing [Renovate](https://github.com/renovatebot/renovate) pull requests across GitHub organizations. The system follows a **stateless architecture** with GitHub Issues as the sole state store, focusing on automated PR approval, dependency fixing, and repository health monitoring to reduce manual intervention in dependency updates.
 
-**Last Updated**: 2025-07-08
-**Version**: Current Architecture v0.2.0
+**Last Updated**: 2025-01-09
+**Version**: Current Architecture v0.4.0
 
 ## System Architecture
 
@@ -14,6 +14,7 @@ graph TB
     subgraph "External Systems"
         GH[GitHub API<br/>Webhooks & REST API]
         RENOVATE[Renovate Bot<br/>Dependency Updates]
+        ISSUES[GitHub Issues<br/>Dashboard State Store]
     end
 
     subgraph "Core Application"
@@ -33,7 +34,7 @@ graph TB
     subgraph "Infrastructure"
         CONFIG[Configuration<br/>Pydantic Settings]
         LOG[Structured Logging<br/>Structlog]
-        CACHE[File Cache<br/>Temporary Repos]
+        TEMP[Temporary Storage<br/>Git Clones]
     end
 
     GH --> WL
@@ -43,6 +44,7 @@ graph TB
     PR --> DF
     PR --> IM
     GC --> GH
+    GC --> ISSUES
     DF --> PY
     DF --> TS
     DF --> GO
@@ -51,8 +53,23 @@ graph TB
     CONFIG --> GC
     LOG --> WL
     LOG --> PR
-    CACHE --> DF
+    TEMP --> DF
 ```
+
+## Stateless Architecture Principles
+
+### Design Philosophy
+- **No Persistent Application State**: All state is maintained in GitHub Issues
+- **Ephemeral Processing**: Each webhook event is processed independently
+- **Temporary Resources**: Repository clones are created and cleaned up per operation
+- **External State Store**: GitHub Issues serve as the dashboard and state persistence layer
+
+### Benefits
+- **Horizontal Scalability**: Multiple instances can run without coordination
+- **Simple Deployment**: No database setup or maintenance required
+- **Reliability**: No risk of data corruption or migration issues
+- **Cost Effective**: Minimal infrastructure requirements
+- **GitHub Native**: All data remains within GitHub ecosystem
 
 ## Data Flow
 
@@ -331,13 +348,13 @@ LOG_FORMAT=json
 - **Simple Events**: 50-100ms response time
 - **PR Analysis**: 200-500ms for status checks
 - **Dependency Fixing**: 30-180 seconds (depends on repository size)
-- **Dashboard Updates**: 100-300ms for issue updates
+- **Dashboard Updates**: 300-800ms for GitHub Issue updates
 
 ### GitHub API Usage
 
 - **Rate Limit Awareness**: Automatic detection and respect
-- **Efficient Calls**: Minimize API calls through caching
-- **Batch Operations**: Group related API calls when possible
+- **Efficient Calls**: Minimize API calls through intelligent caching
+- **State Management**: GitHub Issues as persistent state store
 - **Error Handling**: Graceful degradation on API failures
 
 ### Resource Usage
@@ -346,6 +363,7 @@ LOG_FORMAT=json
 - **CPU**: Low baseline, high during git operations and dependency resolution
 - **Disk**: Temporary repository clones (cleaned up automatically)
 - **Network**: GitHub API calls and git operations
+- **Storage**: No persistent storage required - fully stateless
 
 ## Security Architecture
 
@@ -378,34 +396,81 @@ LOG_FORMAT=json
 ```dockerfile
 FROM python:3.13-slim
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+COPY pyproject.toml poetry.lock ./
+RUN pip install poetry && poetry install --only=main --no-root
 COPY src/ ./src/
-RUN pip install -e .
+RUN poetry install --only-root
 EXPOSE 8000
-CMD ["uvicorn", "renovate_agent.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "renovate_agent.main"]
 ```
 
-**Docker Compose**:
-- **Application**: RenovateAgent service
-- **Database**: PostgreSQL for production
-- **Cache**: Redis for session management
-- **Proxy**: Nginx for SSL termination
+**Docker Compose (Simplified)**:
+```yaml
+version: '3.8'
+services:
+  renovate-agent:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - GITHUB_APP_ID=${GITHUB_APP_ID:-0}
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
+      - GITHUB_ORGANIZATION=${GITHUB_ORGANIZATION}
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+    volumes:
+      - ./config/private-key.pem:/app/private-key.pem:ro
+      - ./logs:/app/logs
+```
 
 ### Production Requirements
 
-- **Reverse Proxy**: Nginx or similar for SSL/TLS termination
-- **Database**: PostgreSQL for persistent storage
-- **Monitoring**: Health checks and metrics collection
-- **Logging**: Centralized log aggregation
-- **Secrets**: Secure private key and token management
+- **Reverse Proxy**: Nginx or similar for SSL/TLS termination and load balancing
+- **Health Monitoring**: Built-in `/health` endpoint for load balancer checks
+- **Logging**: Centralized log aggregation (JSON structured logs)
+- **Secrets Management**: Secure GitHub App private key and webhook secret storage
+- **Container Orchestration**: Kubernetes or Docker Swarm for high availability
 
 ### Scaling Considerations
 
-- **Horizontal Scaling**: Multiple instances behind load balancer
-- **Database Scaling**: Read replicas for dashboard queries
-- **Cache Layer**: Redis for session and temporary data
-- **Background Jobs**: Queue system for long-running dependency fixes
+- **Horizontal Scaling**: Multiple stateless instances behind load balancer
+- **No Database**: Eliminates database bottlenecks and complexity
+- **GitHub API Limits**: Primary scaling constraint is GitHub API rate limits
+- **Resource Isolation**: Each instance operates independently
+- **Auto-scaling**: Can scale based on webhook volume and CPU usage
+
+### High Availability Setup
+
+```yaml
+# Kubernetes deployment example
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: renovate-agent
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: renovate-agent
+  template:
+    metadata:
+      labels:
+        app: renovate-agent
+    spec:
+      containers:
+      - name: renovate-agent
+        image: renovate-agent:0.4.0
+        ports:
+        - containerPort: 8000
+        env:
+        - name: GITHUB_ORGANIZATION
+          value: "your-org"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+```
 
 ## Error Handling and Resilience
 
@@ -414,21 +479,23 @@ CMD ["uvicorn", "renovate_agent.main:app", "--host", "0.0.0.0", "--port", "8000"
 1. **GitHub API Errors**: Rate limiting, authentication, network issues
 2. **Dependency Fixing Errors**: Tool failures, compilation errors, conflicts
 3. **Configuration Errors**: Missing settings, invalid values
-4. **Infrastructure Errors**: Database connectivity, file system issues
+4. **Temporary Resource Errors**: Git operations, file system issues
 
 ### Recovery Strategies
 
-- **Exponential Backoff**: Automatic retry with increasing delays
+- **Stateless Recovery**: Each request is independent, no state corruption risk
+- **Exponential Backoff**: Automatic retry with increasing delays for GitHub API
 - **Circuit Breaker**: Temporary service degradation on repeated failures
 - **Graceful Degradation**: Continue operation with reduced functionality
-- **Manual Intervention**: Clear error reporting for human review
+- **Manual Intervention**: Clear error reporting through GitHub Issue updates
 
 ### Monitoring and Alerting
 
 - **Health Endpoints**: `/health` for application status
 - **Metrics Collection**: PR processing rates, success rates, API usage
 - **Error Tracking**: Structured error logging with context
-- **Dashboard Monitoring**: Repository health status tracking
+- **Dashboard Monitoring**: GitHub Issues contain real-time health status
+- **GitHub API Monitoring**: Rate limit usage and quota tracking
 
 ## Architecture Benefits
 
@@ -436,46 +503,29 @@ CMD ["uvicorn", "renovate_agent.main:app", "--host", "0.0.0.0", "--port", "8000"
 
 - **Reduced Manual Work**: Automatic PR approval for passing checks
 - **Fast Dependency Resolution**: Automated lock file updates
-- **Proactive Monitoring**: Real-time repository health dashboards
+- **Real-time Monitoring**: GitHub Issues provide instant visibility
 - **Scalable Processing**: Handle multiple repositories simultaneously
 
 ### Reliability and Safety
 
+- **Stateless Reliability**: No persistent state to corrupt or lose
 - **Conservative Approval**: Only approve PRs with all checks passing
-- **Rollback Protection**: Comprehensive error handling with cleanup
-- **Audit Trail**: Complete logging of all actions taken
+- **Automatic Cleanup**: Temporary resources cleaned up after each operation
+- **Audit Trail**: Complete logging and GitHub Issue history
 - **Security First**: Cryptographic validation of all inputs
 
 ### Developer Experience
 
-- **Transparent Operations**: Clear dashboard showing all PR status
-- **Minimal Configuration**: Simple environment variable setup
-- **Local Development**: Personal Access Token mode for testing
-- **Comprehensive Logging**: Detailed troubleshooting information
+- **GitHub Native**: All monitoring and state within familiar GitHub interface
+- **No Database Management**: Eliminates database administration overhead
+- **Simple Deployment**: Single container with minimal configuration
+- **Easy Debugging**: All state visible in GitHub Issues and structured logs
+- **Cost Effective**: No additional infrastructure costs for databases or caches
 
-## Future Architecture Considerations
+### Operational Simplicity
 
-### Scalability Enhancements
-
-- **Microservices**: Split into specialized services (webhook, processor, fixer)
-- **Message Queues**: Asynchronous processing with Redis/RabbitMQ
-- **Database Sharding**: Partition data by organization or repository
-- **CDN Integration**: Cache static dashboard content
-
-### Feature Extensions
-
-- **Multi-Platform Support**: GitLab, Bitbucket integration
-- **Advanced Analytics**: Dependency update trends and insights
-- **Custom Rules**: Organization-specific approval criteria
-- **Integration APIs**: External tool integration points
-
-### Operational Improvements
-
-- **Observability**: Distributed tracing and metrics
-- **Disaster Recovery**: Multi-region deployment capabilities
-- **Performance Optimization**: Caching and query optimization
-- **Security Hardening**: Enhanced authentication and authorization
-
----
-
-This architecture emphasizes reliability, security, and automation while maintaining simplicity and operational transparency. The modular design allows for easy extension and customization while providing robust dependency management automation for modern development workflows.
+- **Infrastructure Minimal**: Only the application container required
+- **No Migrations**: No database schema changes or data migrations
+- **Backup Free**: No application data to backup (GitHub provides persistence)
+- **Disaster Recovery**: Simply redeploy container with same configuration
+- **Development Parity**: Local development identical to production environment

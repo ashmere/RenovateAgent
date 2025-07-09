@@ -31,8 +31,6 @@ structlog = "^25.0.0"
 python-dotenv = "^1.1.1"
 cryptography = "^44.0.0"
 PyJWT = "^2.10.1"
-sqlalchemy = "^2.0.0"
-alembic = "^1.16.3"
 aiofiles = "^24.0.0"
 python-json-logger = "^3.0.0"
 
@@ -137,7 +135,6 @@ module = [
     "github.*",
     "structlog.*",
     "uvicorn.*",
-    "alembic.*",
 ]
 ignore_missing_imports = true
 
@@ -169,8 +166,6 @@ omit = [
     "*/tests/*",
     "*/test_*",
     "*/__pycache__/*",
-    "*/migrations/*",
-    "*/alembic/*",
 ]
 
 [tool.coverage.report]

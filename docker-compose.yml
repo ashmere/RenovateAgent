@@ -6,61 +6,49 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/renovate_agent
-      - GITHUB_APP_ID=${GITHUB_APP_ID}
+      # GitHub Authentication (choose one approach)
+      # Production (GitHub App)
+      - GITHUB_APP_ID=${GITHUB_APP_ID:-0}
       - GITHUB_APP_PRIVATE_KEY_PATH=/app/private-key.pem
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+
+      # Development (Personal Access Token)
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
+
+      # Required Configuration
       - GITHUB_ORGANIZATION=${GITHUB_ORGANIZATION}
-      - DEBUG=true
-      - LOG_LEVEL=DEBUG
+
+      # Optional Configuration
+      - GITHUB_REPOSITORY_ALLOWLIST=${GITHUB_REPOSITORY_ALLOWLIST}
+      - GITHUB_TEST_REPOSITORIES=${GITHUB_TEST_REPOSITORIES}
+
+      # Application Configuration
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - HOST=0.0.0.0
+      - PORT=8000
+
+      # Dependency Fixing Configuration
+      - ENABLE_DEPENDENCY_FIXING=${ENABLE_DEPENDENCY_FIXING:-true}
+      - SUPPORTED_LANGUAGES=${SUPPORTED_LANGUAGES:-python,typescript,go}
+      - CLONE_TIMEOUT=${CLONE_TIMEOUT:-300}
+      - DEPENDENCY_UPDATE_TIMEOUT=${DEPENDENCY_UPDATE_TIMEOUT:-600}
+
+      # Dashboard Configuration
+      - DASHBOARD_CREATION_MODE=${DASHBOARD_CREATION_MODE:-renovate-only}
     volumes:
+      # Optional: GitHub App private key (for production)
       - ./config/private-key.pem:/app/private-key.pem:ro
+      # Optional: Logs directory
       - ./logs:/app/logs
-    depends_on:
-      - db
-      - redis
     networks:
       - renovate-network
-
-  db:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_DB=renovate_agent
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./config/init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "5432:5432"
-    networks:
-      - renovate-network
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - renovate-network
-
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./config/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - renovate-agent
-    networks:
-      - renovate-network
-
-volumes:
-  postgres_data:
-  redis_data:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
   renovate-network:

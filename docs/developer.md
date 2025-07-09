@@ -82,8 +82,8 @@ GITHUB_APP_PRIVATE_KEY_PATH=path/to/your/private-key.pem
 GITHUB_WEBHOOK_SECRET=your_webhook_secret
 GITHUB_ORGANIZATION=your-organization
 
-# Database Configuration
-DATABASE_URL=sqlite:///./renovate_agent.db
+# Database Configuration (REMOVED - Stateless Architecture)
+# The application uses GitHub Issues as its state store - no database required
 
 # Dependency Fixer Configuration
 ENABLE_DEPENDENCY_FIXING=true
@@ -252,6 +252,44 @@ async def fix_repository_dependencies(repo_url: str, branch: str):
             await commit_and_push(repo_path, branch)
 ```
 
+## State Management
+
+### GitHub Issues as State Store
+
+RenovateAgent uses a **stateless architecture** where GitHub Issues serve as the persistent state store:
+
+```python
+# State is maintained in GitHub Issues
+async def update_repository_state(repo_name: str, pr_data: dict):
+    """Update repository state via GitHub Issues dashboard."""
+    dashboard_issue = await issue_manager.get_or_create_dashboard_issue(repo_name)
+    await issue_manager.update_dashboard_issue(dashboard_issue, pr_data)
+```
+
+### Dashboard Issue Structure
+
+Each repository gets a dashboard issue containing:
+
+```json
+{
+    "repository": "owner/repo-name",
+    "last_updated": "2025-01-09T12:00:00Z",
+    "recent_prs": [
+        {
+            "number": 123,
+            "title": "chore(deps): update dependency package",
+            "status": "approved",
+            "processed_at": "2025-01-09T11:30:00Z"
+        }
+    ],
+    "statistics": {
+        "total_processed": 45,
+        "successful_fixes": 38,
+        "auto_approved": 42
+    }
+}
+```
+
 ## Testing Strategy
 
 ### Unit Tests
@@ -312,36 +350,6 @@ async def test_real_github_integration():
     pass
 ```
 
-## Database Schema
-
-### Repository State
-
-```sql
-CREATE TABLE repositories (
-    id INTEGER PRIMARY KEY,
-    github_id INTEGER UNIQUE,
-    full_name TEXT NOT NULL,
-    last_processed TIMESTAMP,
-    dashboard_issue_number INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### PR Processing History
-
-```sql
-CREATE TABLE pr_processing_history (
-    id INTEGER PRIMARY KEY,
-    repository_id INTEGER,
-    pr_number INTEGER,
-    action TEXT,
-    success BOOLEAN,
-    error_message TEXT,
-    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (repository_id) REFERENCES repositories(id)
-);
-```
-
 ## Monitoring and Observability
 
 ### Health Checks
@@ -350,7 +358,7 @@ The application provides health check endpoints:
 
 - `/health` - Basic health check
 - `/health/github` - GitHub API connectivity
-- `/health/database` - Database connectivity
+- `/health/issues` - GitHub Issues dashboard accessibility
 
 ### Metrics
 
@@ -360,6 +368,7 @@ Track these key metrics:
 - Success rate of dependency fixes
 - GitHub API rate limit usage
 - Processing time per PR
+- Dashboard update success rate
 
 ### Alerting
 
@@ -368,7 +377,7 @@ Set up alerts for:
 - Failed dependency fixes
 - GitHub API rate limit approaching
 - Webhook processing errors
-- Database connection failures
+- GitHub Issues API failures
 
 ## Security Considerations
 
@@ -422,10 +431,10 @@ async def rate_limit_middleware(request: Request, call_next):
 ### Production Requirements
 
 - Python 3.12+
-- PostgreSQL (recommended) or SQLite
-- Redis for caching (optional)
+- Container runtime (Docker/Podman)
 - Reverse proxy (nginx recommended)
 - SSL/TLS certificates
+- GitHub App with appropriate permissions
 
 ### Docker Deployment
 
@@ -434,16 +443,15 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+COPY pyproject.toml poetry.lock ./
+RUN pip install poetry && poetry install --only=main --no-root
 
 COPY src/ ./src/
-COPY setup.py .
-RUN pip install -e .
+RUN poetry install --only-root
 
 EXPOSE 8000
 
-CMD ["uvicorn", "renovate_agent.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "renovate_agent.main"]
 ```
 
 ### Environment-Specific Configuration
@@ -472,6 +480,11 @@ Use different configuration files for different environments:
    - Check repository permissions
    - Verify language-specific tools are installed
    - Review timeout configurations
+
+4. **Dashboard Issue Access**
+   - Verify GitHub App has Issues write permissions
+   - Check repository access and allowlist configuration
+   - Monitor GitHub Issues API quota usage
 
 ### Debug Mode
 
