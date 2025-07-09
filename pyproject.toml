@@ -24,7 +24,7 @@ packages = [{include = "renovate_agent", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-fastapi = "^0.104.0"
+fastapi = "^0.109.0"
 uvicorn = {extras = ["standard"], version = "^0.24.0"}
 pydantic = "^2.5.0"
 pydantic-settings = "^2.1.0"
