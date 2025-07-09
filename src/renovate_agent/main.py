@@ -65,7 +65,7 @@ async def _create_startup_dashboards(
         test_repos = current_settings.get_test_repositories()
         if not test_repos:
             logger.info(
-                "No test repositories configured for startup dashboard creation"
+                "No test repositories configured " "for startup dashboard creation"
             )
             return
 
@@ -116,7 +116,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     # Initialize services
-    github_client = GitHubClient(settings.github_app_config)
+    github_client = GitHubClient(settings)
     pr_processor = PRProcessor(github_client, settings)
 
     # Store services in app state
@@ -211,7 +211,10 @@ def main() -> None:
     logger = structlog.get_logger()
 
     logger.info(
-        "Starting server", host=settings.host, port=settings.port, debug=settings.debug
+        "Starting server",
+        host=settings.host,
+        port=settings.port,
+        debug=settings.debug,
     )
 
     uvicorn.run(
