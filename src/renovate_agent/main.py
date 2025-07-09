@@ -6,8 +6,8 @@ the webhook listener service.
 """
 
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Dict
 
 import structlog
 from fastapi import FastAPI
@@ -63,7 +63,7 @@ async def _create_startup_dashboards(
         test_repos = current_settings.get_test_repositories()
         if not test_repos:
             logger.info(
-                "No test repositories configured for startup dashboard creation"
+                "No test repositories configured for startup dashboard " "creation"
             )
             return
 
@@ -153,13 +153,13 @@ app.include_router(webhook_listener.router, prefix="/webhooks", tags=["webhooks"
 
 
 @app.get("/")
-async def root() -> Dict[str, str]:
+async def root() -> dict[str, str]:
     """Root endpoint."""
     return {"message": "Renovate PR Assistant", "version": "0.2.0", "status": "active"}
 
 
 @app.get("/health")
-async def health_check() -> Dict[str, str]:
+async def health_check() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "healthy"}
 
