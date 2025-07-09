@@ -2,37 +2,53 @@
 
 This guide shows you how to run the Renovate PR Assistant locally for testing without setting up a full GitHub App.
 
-## Quick Start (2 minutes)
+## Prerequisites
 
-### Option 1: Using GitHub CLI (Recommended)
+Before starting, ensure you have:
+- **Python 3.12+** installed
+- **Poetry** for dependency management (`pip install poetry`)
+- **direnv** for environment management (optional but recommended)
+- **GitHub account** with access to target repositories
 
-If you have `gh` CLI installed and authenticated:
+## Quick Start (3 minutes)
+
+### Option 1: Automated Setup (Recommended)
+
+The setup script handles authentication, validation, and configuration:
 
 ```bash
 # 1. Install dependencies
 poetry install
 
-# 2. Run the setup script
+# 2. Run the automated setup script
 poetry run python scripts/local_setup.py
+# This script will:
+# - Detect GitHub CLI authentication or guide you through manual setup
+# - Validate your GitHub access
+# - Create a complete .env file with proper formatting
+# - Suggest test repositories based on your organization
 
 # 3. Test the connection
 poetry run python scripts/test_github_connection.py
 
-# 4. Test repository access (optional)
+# 4. Test repository access
 poetry run python scripts/test_target_repos.py
 
-# 5. Start the server
+# 5. Test webhook processing (includes security validation)
+poetry run python scripts/test_webhook.py
+
+# 6. Start the server
 poetry run python -m renovate_agent.main
 ```
 
 ### Option 2: Manual Token Setup
 
-If you don't have GitHub CLI:
+If you prefer manual setup or automated setup fails:
 
 1. **Get a Personal Access Token:**
    - Go to: https://github.com/settings/tokens
    - Click "Generate new token (classic)"
-   - Select scopes: `repo`, `read:org`, `read:user`
+   - Select scopes: `repo`, `read:org`, `read:user`, `write:issues`
    - Copy the token
 
 2. **Set up environment:**
@@ -42,13 +58,211 @@ If you don't have GitHub CLI:
    poetry run python scripts/local_setup.py
    ```
 
-3. **Test and run:**
-   ```bash
-   poetry run python scripts/test_github_connection.py
-   poetry run python scripts/test_target_repos.py      # Test repository access
-   poetry run python scripts/test_webhook.py           # Test webhook processing
-   poetry run python -m renovate_agent.main
-   ```
+## Testing Scripts Overview
+
+The project includes several testing scripts to validate functionality:
+
+| Script | Purpose | Expected Outcome |
+|--------|---------|------------------|
+| `test_github_connection.py` | Validates GitHub API access | ✅ Should succeed with valid token |
+| `test_target_repos.py` | Tests repository access and PR analysis | ✅ Should find repositories and PRs |
+| `test_webhook.py` | Tests webhook security and processing | ✅ 401 for unsigned, 200 for signed webhooks |
+
+## Understanding Test Results
+
+### Expected Behaviors (These are CORRECT):
+
+#### Webhook Security Test
+```bash
+🔒 Testing webhook security (unsigned requests)...
+   Status: 401
+   ✅ Security working! Unsigned webhooks properly rejected
+```
+**This is correct!** The system should reject unsigned webhooks in production.
+
+#### Signed Webhook Test
+```bash
+🔐 Testing signed webhook (should be accepted)...
+   Status: 200
+   ✅ Signed webhook accepted! Authentication working correctly
+```
+
+#### Repository Access
+```bash
+✅ Repository accessible: your-repo
+   Description: Your repository description
+   Language: Python
+   Private: True
+   Has Issues: True
+   Open PRs: 5
+```
+
+### Problematic Behaviors (These need fixing):
+
+#### Authentication Issues
+```bash
+❌ Token validation failed: 401
+❌ Organization/user 'org-name' not found or not accessible
+```
+
+#### Configuration Issues
+```bash
+❌ GITHUB_TEST_REPOSITORIES environment variable not set
+❌ Repository 'repo-name' must be in format 'org/repo'
+```
+
+## Environment Configuration
+
+The setup script creates a comprehensive `.env` file:
+
+```bash
+# GitHub Authentication (Personal Access Token mode for development)
+GITHUB_APP_ID=0
+GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here
+GITHUB_ORGANIZATION=your-org-or-username
+GITHUB_WEBHOOK_SECRET=dev-secret
+
+# Test Repository Configuration
+GITHUB_TEST_REPOSITORIES=org/repo1,org/repo2
+
+# Dashboard Configuration
+DASHBOARD_CREATION_MODE=renovate-only  # Options: test, any, none, renovate-only
+
+# Dependency Fixing Configuration
+ENABLE_DEPENDENCY_FIXING=true
+SUPPORTED_LANGUAGES=python,typescript,go
+
+# Security and Rate Limiting
+GITHUB_API_RATE_LIMIT=5000
+WEBHOOK_RATE_LIMIT=1000
+```
+
+## Stateless Architecture
+
+The Renovate PR Assistant uses a **stateless architecture**:
+
+✅ **No database required** - uses GitHub Issues as state store
+✅ **No persistent storage** - state maintained in GitHub Issues
+✅ **Single container deployment** - no external dependencies
+✅ **Environment-based configuration** - all settings via environment variables
+
+This means:
+- 🚀 **Faster setup** - no database to configure
+- 🔒 **GitHub-native state** - dashboards are GitHub Issues
+- 📊 **Visible state** - repository dashboards are accessible via GitHub UI
+- 🧹 **No maintenance** - no database migrations or backups needed
+
+## Webhook Testing Details
+
+The webhook test script validates three critical aspects:
+
+### 1. Security Validation (401 Expected)
+Tests that unsigned webhooks are properly rejected:
+```bash
+poetry run python scripts/test_webhook.py
+# 🔒 Testing webhook security (unsigned requests)...
+#    Status: 401
+#    ✅ Security working! Unsigned webhooks properly rejected
+```
+
+### 2. Signed Webhook Processing (200 Expected)
+Tests that properly signed webhooks are accepted:
+```bash
+# 🔐 Testing signed webhook (should be accepted)...
+#    Status: 200
+#    ✅ Signed webhook accepted! Authentication working correctly
+```
+
+### 3. Renovate PR Processing (200 Expected)
+Tests actual Renovate PR processing logic:
+```bash
+# 🔄 Testing Renovate PR webhook processing...
+#    Status: 200
+#    ✅ Renovate PR webhook processed successfully!
+```
+
+## Troubleshooting
+
+### Configuration Issues
+
+#### Wrong Organization Format
+```bash
+❌ Issue: Testing against 'ashmere' but .env has 'skyral-group'
+✅ Solution: Ensure GITHUB_ORGANIZATION matches your target org
+```
+
+#### Missing Test Repositories
+```bash
+❌ Issue: GITHUB_TEST_REPOSITORIES not set
+✅ Solution: Add to .env: GITHUB_TEST_REPOSITORIES=org/repo1,org/repo2
+```
+
+#### Invalid SUPPORTED_LANGUAGES Format
+```bash
+❌ Wrong: SUPPORTED_LANGUAGES=["python", "typescript", "go"]
+✅ Correct: SUPPORTED_LANGUAGES=python,typescript,go
+```
+
+### Authentication Issues
+
+#### Token Scope Problems
+```bash
+❌ Issue: "Repository not found" for accessible repos
+✅ Solution: Ensure token has 'repo', 'read:org', 'read:user', 'write:issues' scopes
+```
+
+#### Rate Limit Issues
+```bash
+❌ Issue: "Rate limit exceeded"
+✅ Solution: Wait for reset or use GitHub App authentication for higher limits
+```
+
+### Runtime Issues
+
+#### Server Connection Failed
+```bash
+❌ Issue: "Cannot connect to server. Is it running on localhost:8000?"
+✅ Solution: Start server in another terminal: poetry run python -m renovate_agent.main
+```
+
+#### direnv Environment Loading Issues
+```bash
+❌ Issue: "direnv: error invalid line"
+✅ Solution: Fix .env format (run local_setup.py again) or reload: direnv reload
+```
+
+### Import/Class Name Issues
+
+#### IssueManager Import Error
+```bash
+❌ Issue: "cannot import name 'IssueManager'"
+✅ Solution: Use 'IssueStateManager' instead - this is the correct class name
+```
+
+## Development Workflow
+
+Typical development session:
+
+```bash
+# 1. Setup (once)
+poetry run python scripts/local_setup.py
+
+# 2. Validate configuration
+poetry run python scripts/test_github_connection.py
+poetry run python scripts/test_target_repos.py
+
+# 3. Development cycle
+poetry run python -m renovate_agent.main  # Start server
+poetry run python scripts/test_webhook.py  # Test in another terminal
+
+# 4. Code changes
+# Make your changes...
+poetry run python -m pytest tests/  # Run tests
+poetry run pre-commit run --all-files  # Check code quality
+
+# 5. Re-test
+poetry run python scripts/test_webhook.py  # Verify changes work
+```
 
 ## What You Get
 
@@ -56,119 +270,40 @@ Once running, you'll have:
 
 - **Webhook endpoint:** `http://localhost:8000/webhooks/github`
 - **Health check:** `http://localhost:8000/health`
-- **API docs:** `http://localhost:8000/docs`
+- **API documentation:** `http://localhost:8000/docs`
+- **GitHub Issues dashboards** created in test repositories
+- **Real GitHub API integration** for testing
 
-## Testing GitHub Integration
+## Production Readiness Check
 
-The local setup allows you to:
+Before deploying to production, ensure:
 
-✅ **Connect to real GitHub API** using your token
-✅ **Test repository access** for your organizations
-✅ **Test PR processing logic** with real PR data
-✅ **Test dependency fixing** on real repositories
-✅ **Debug webhook processing** with real GitHub events
-✅ **Test dashboard creation** with different modes (test, any, none, renovate-only)
+✅ All test scripts pass
+✅ Webhook signature validation working (401 for unsigned requests)
+✅ Repository access confirmed for target organizations
+✅ Environment variables properly configured
+✅ GitHub Issues created and updated correctly
+✅ Dependency fixing working for supported languages
 
-## Simulating GitHub Webhooks
+## Differences from Production
 
-To test webhook processing locally:
-
-1. **Start the server:**
-   ```bash
-   poetry run python -m renovate_agent.main
-   ```
-
-2. **Send test webhook:** You can use curl or any HTTP client:
-   ```bash
-   curl -X POST http://localhost:8000/webhooks/github \
-     -H "Content-Type: application/json" \
-     -H "X-GitHub-Event: pull_request" \
-     -d '{"action": "opened", "pull_request": {...}}'
-   ```
-
-3. **Use GitHub CLI to trigger real events:**
-   ```bash
-   # Create a test PR (will trigger real webhook if configured)
-   gh pr create --title "Test PR" --body "Testing Renovate PR Assistant"
-   ```
-
-## Real Repository Testing
-
-With your PAT, you can test against real repositories:
-
-```bash
-# Test on specific repositories
-export GITHUB_TEST_REPOSITORIES="yourusername/repo1,yourusername/repo2"
-
-# The Renovate PR Assistant will:
-# - Read real PR data
-# - Check actual CI status
-# - Access real dependency files
-# - Make real GitHub API calls
-# - Filter repositories based on allowlist (if configured)
-```
-
-## Environment Variables
-
-The local setup creates these environment variables:
-
-```bash
-# Development mode (uses PAT instead of GitHub App)
-GITHUB_APP_ID=0
-GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here
-GITHUB_ORGANIZATION=yourusername
-
-# Optional: Repository filtering
-GITHUB_REPOSITORY_ALLOWLIST=repo1,repo2  # If empty, monitors all repos
-GITHUB_TEST_REPOSITORIES=org/repo1,org/repo2  # For testing
-
-# Local server
-HOST=0.0.0.0
-PORT=8000
-DEBUG=true
-
-# Dashboard configuration
-DASHBOARD_CREATION_MODE=test  # For testing: create dashboards for any PR
-
-# Dependency fixing
-ENABLE_DEPENDENCY_FIXING=true
-SUPPORTED_LANGUAGES=python,typescript,go
-```
-
-## Troubleshooting
-
-### "Authentication failed"
-- Check your token has the right scopes: `repo`, `read:org`, `read:user`
-- Verify the token isn't expired
-- Make sure `GITHUB_PERSONAL_ACCESS_TOKEN` is set
-
-### "Organization not found"
-- Use your GitHub username instead of organization name
-- Check you have access to the organization
-
-### "Rate limit exceeded"
-- Personal tokens have lower rate limits than GitHub Apps
-- Wait a few minutes and try again
-- Use `python scripts/test_github_connection.py` to check limits
-
-### "Repository not processed"
-- Check if repository is archived (archived repos are ignored by default)
-- Verify repository is in allowlist (if `GITHUB_REPOSITORY_ALLOWLIST` is set)
-- Ensure you have proper permissions to access the repository
+| Aspect | Local Testing | Production |
+|--------|---------------|------------|
+| **Authentication** | Personal Access Token | GitHub App |
+| **Rate Limits** | 5,000/hour (PAT) | 5,000/hour per installation |
+| **Permissions** | All repos user can access | Fine-grained per installation |
+| **Webhook Security** | ✅ Enabled (same as prod) | ✅ Enabled |
+| **State Storage** | ✅ GitHub Issues (same) | ✅ GitHub Issues |
+| **Database** | ❌ None (stateless) | ❌ None (stateless) |
 
 ## Next Steps
 
 Once local testing works:
 
-1. **Deploy to production** with proper GitHub App setup
-2. **Configure real webhooks** pointing to your deployed instance
-3. **Set up monitoring** and logging for production use
+1. **Set up GitHub App** for production authentication
+2. **Deploy to cloud provider** (supports stateless architecture)
+3. **Configure production webhooks** pointing to your deployed instance
+4. **Set up monitoring** and alerting for production use
+5. **Configure repository allowlists** for target organizations
 
-## Differences from Production
-
-Local testing mode:
-- ✅ Uses Personal Access Token (simpler setup)
-- ✅ Full GitHub API access for testing
-- ❌ No webhook signature validation
-- ❌ Limited rate limits vs GitHub App
-- ❌ No fine-grained permissions
+The stateless architecture makes deployment simple - just a single container with environment variables!
