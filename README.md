@@ -30,31 +30,27 @@ An intelligent automation system that streamlines dependency management by autom
 
 ## 🏗️ Architecture
 
-```mermaid
-graph TD
-    A[GitHub Webhook] --> B[Webhook Listener]
-    B --> C[PR Processing Engine]
-    C --> D{Analysis}
-    D -->|Passing Checks| E[Auto-approve PR]
-    D -->|Failed Lock File| F[Dependency Fixer]
-    F --> G[Clone & Fix]
-    G --> H[Commit & Push]
-    C --> I[GitHub API Client]
-    I --> J[GitHub]
-    E --> I
-    H --> I
-    C --> K[Issue State Manager]
-    K --> L[Dashboard Issue]
-    L --> I
-```
+RenovateAgent features a **dual-mode architecture** supporting both **webhook** and **polling** operation modes with **Phase 2 optimizations** including adaptive intervals, delta detection, intelligent caching, and comprehensive metrics.
 
-### Core Components
+### 🎯 Operation Modes
+- **🕷️ Webhook Mode**: Real-time GitHub event processing (<5 seconds latency)
+- **🔄 Polling Mode**: Intelligent periodic scanning (1-15 minute adaptive intervals)
+- **🔀 Dual Mode**: Both modes simultaneously with automatic deduplication
 
-- **🎯 GitHub Webhook Listener**: Receives and processes GitHub events in real-time
-- **🧠 PR Processing Engine**: Intelligent decision-making for PR handling
-- **🔧 Dependency Fixer**: Language-specific dependency resolution
-- **📡 GitHub API Client**: Robust GitHub integration with rate limiting and error handling
-- **📋 Issue State Manager**: Maintains repository health dashboards
+### 🧠 Core Intelligence
+- **📊 Adaptive Scheduling**: Activity-based polling frequency (1-15 minutes)
+- **🔍 Delta Detection**: Only process PRs with meaningful changes (60-80% API reduction)
+- **💾 Smart Caching**: Multi-layer cache with 80-95% hit rates
+- **📈 Performance Metrics**: Real-time monitoring and health scoring
+
+### 📋 Complete Architecture Details
+For comprehensive system architecture, deployment options, and technical specifications, see our detailed [**Architecture Documentation**](docs/architecture.md) which includes:
+
+- 🏗️ **[System Architecture Diagram](docs/architecture.md#system-architecture)**
+- ⚙️ **[Operation Mode Details](docs/architecture.md#operation-modes)**
+- 🚀 **[Deployment Architectures](docs/architecture.md#deployment-architectures)**
+- 📊 **[Performance Characteristics](docs/architecture.md#performance-characteristics-phase-2)**
+- 🔒 **[Security Model](docs/architecture.md#security-model)**
 
 ## 🛠️ Quick Start
 
