@@ -49,6 +49,45 @@ class DependencyFixerConfig(BaseModel):
     )
 
 
+class PollingConfig(BaseModel):
+    """Polling configuration settings."""
+
+    enabled: bool = Field(default=False, description="Enable polling mode")
+    base_interval_seconds: int = Field(
+        default=120, description="Base polling interval in seconds (2 minutes)"
+    )
+    max_interval_seconds: int = Field(
+        default=600, description="Maximum polling interval in seconds (10 minutes)"
+    )
+    adaptive_polling: bool = Field(
+        default=True, description="Enable adaptive polling frequency"
+    )
+    activity_window_minutes: int = Field(
+        default=30, description="Activity monitoring window in minutes"
+    )
+    high_activity_threshold: int = Field(
+        default=10, description="Active PRs threshold for high activity"
+    )
+    low_activity_multiplier: float = Field(
+        default=3.0, description="Frequency multiplier for low activity"
+    )
+    api_usage_threshold: float = Field(
+        default=0.8, description="API usage threshold to slow down polling"
+    )
+    rate_limit_check_interval: int = Field(
+        default=60, description="Rate limit check interval in seconds"
+    )
+    error_backoff_seconds: int = Field(
+        default=300, description="Error backoff time in seconds"
+    )
+    max_consecutive_failures: int = Field(
+        default=5, description="Maximum consecutive failures before stopping"
+    )
+    concurrent_repo_polling: int = Field(
+        default=5, description="Number of repositories to poll concurrently"
+    )
+
+
 class DashboardConfig(BaseModel):
     """Dashboard configuration settings."""
 
@@ -153,6 +192,21 @@ class Settings(BaseSettings):
     )
     ignore_archived_repositories: bool = Field(
         default=True, description="Ignore archived repositories"
+    )
+
+    # Polling Configuration
+    enable_polling: bool = Field(default=False, description="Enable polling mode")
+    polling_interval_seconds: int = Field(
+        default=120, description="Base polling interval in seconds"
+    )
+    polling_max_interval_seconds: int = Field(
+        default=600, description="Maximum polling interval in seconds"
+    )
+    polling_adaptive: bool = Field(
+        default=True, description="Enable adaptive polling frequency"
+    )
+    polling_concurrent_repos: int = Field(
+        default=5, description="Number of repositories to poll concurrently"
     )
 
     @field_validator("supported_languages", mode="before")
@@ -289,6 +343,17 @@ class Settings(BaseSettings):
         return DashboardConfig(
             issue_title=self.dashboard_issue_title,
             update_on_events=self.update_dashboard_on_events,
+        )
+
+    @property
+    def polling_config(self) -> PollingConfig:
+        """Get polling configuration."""
+        return PollingConfig(
+            enabled=self.enable_polling,
+            base_interval_seconds=self.polling_interval_seconds,
+            max_interval_seconds=self.polling_max_interval_seconds,
+            adaptive_polling=self.polling_adaptive,
+            concurrent_repo_polling=self.polling_concurrent_repos,
         )
 
     def should_process_repository(

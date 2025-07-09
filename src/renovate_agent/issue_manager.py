@@ -186,6 +186,16 @@ class IssueStateManager:
                 "dependency_fixes_applied": 0,
                 "blocked_prs": 0,
             },
+            "polling_metadata": {
+                "last_poll_time": None,
+                "last_pr_update": None,
+                "current_poll_interval": "2m",
+                "active_prs": [],
+                "total_polls_today": 0,
+                "api_calls_used_today": 0,
+                "polling_enabled": self.settings.enable_polling,
+                "last_polling_error": None,
+            },
             "agent_status": "active",
         }
 
@@ -442,9 +452,39 @@ class IssueStateManager:
         except ValueError:
             updated_str = last_updated
 
+        # Add polling status information
+        polling_meta = data.get("polling_metadata", {})
+        polling_status = ""
+
+        if polling_meta.get("polling_enabled"):
+            last_poll = polling_meta.get("last_poll_time", "Never")
+            if last_poll and last_poll != "Never":
+                try:
+                    poll_dt = datetime.fromisoformat(last_poll.replace("Z", "+00:00"))
+                    last_poll = poll_dt.strftime("%Y-%m-%d %H:%M UTC")
+                except Exception:
+                    pass
+
+            polling_status = f"""
+
+### 🔄 Polling Status
+
+- **Mode:** Polling + Webhooks
+- **Last Poll:** {last_poll}
+- **Poll Interval:** {polling_meta.get('current_poll_interval', '2m')}
+- **Active PRs:** {len(polling_meta.get('active_prs', []))}
+- **Polls Today:** {polling_meta.get('total_polls_today', 0)}"""
+        else:
+            polling_status = """
+
+### 🔄 Processing Mode
+
+- **Mode:** Webhooks Only"""
+
         report = f"""# 🤖 Renovate PRs Assistant Dashboard
 
 ## Repository: {repo_name}
+{polling_status}
 
 ### 📊 Summary
 

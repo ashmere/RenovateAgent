@@ -45,6 +45,10 @@ class GitHubClient:
         self._rate_limit_reset_time: float | None = None
         self._rate_limit_remaining: int | None = None
 
+    def get_github_instance(self) -> Github:
+        """Get the GitHub instance synchronously for rate limit checks."""
+        return self._github
+
     async def _get_github_instance(self) -> Github:
         """Get authenticated GitHub instance."""
         if self._github is None:

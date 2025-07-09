@@ -5,6 +5,7 @@ This module sets up the FastAPI application, configures logging, and starts
 the webhook listener service.
 """
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -15,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .github_client import GitHubClient
+from .polling import PollingOrchestrator
 from .pr_processor import PRProcessor
 from .webhook_listener import WebhookListener
 
@@ -121,10 +123,36 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.github_client = github_client
     app.state.pr_processor = pr_processor
 
+    # Initialize polling orchestrator if enabled
+    polling_orchestrator = None
+    if settings.enable_polling:
+        logger.info("Polling mode enabled, starting polling orchestrator")
+        polling_orchestrator = PollingOrchestrator(
+            github_client, pr_processor, settings
+        )
+        app.state.polling_orchestrator = polling_orchestrator
+
+        # Start polling in background
+        polling_task = asyncio.create_task(polling_orchestrator.start_polling())
+        app.state.polling_task = polling_task
+
     # Create startup dashboards if configured
     await _create_startup_dashboards(github_client, logger)
 
     yield
+
+    # Cleanup on shutdown
+    if polling_orchestrator:
+        logger.info("Stopping polling orchestrator")
+        await polling_orchestrator.stop_polling()
+
+        # Cancel polling task if it's still running
+        if hasattr(app.state, "polling_task"):
+            app.state.polling_task.cancel()
+            try:
+                await app.state.polling_task
+            except asyncio.CancelledError:
+                pass
 
     logger.info("Shutting down Renovate PR Assistant")
 
@@ -159,9 +187,20 @@ async def root() -> dict[str, str]:
 
 
 @app.get("/health")
-async def health_check() -> dict[str, str]:
+async def health_check() -> dict[str, str | bool]:
     """Health check endpoint."""
-    return {"status": "healthy"}
+    health_data = {"status": "healthy"}
+
+    # Add polling status if enabled
+    if hasattr(app.state, "polling_orchestrator"):
+        orchestrator = app.state.polling_orchestrator
+        health_data["polling_enabled"] = True
+        health_data["polling_running"] = orchestrator.is_running()
+    else:
+        health_data["polling_enabled"] = False
+        health_data["polling_running"] = False
+
+    return health_data
 
 
 def main() -> None:

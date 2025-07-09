@@ -1,6 +1,6 @@
 # Local Testing Guide
 
-This guide shows you how to run the Renovate PR Assistant locally for testing without setting up a full GitHub App.
+This guide shows you how to run the Renovate PR Assistant locally for testing. The system now supports **dual-mode operation** with both **polling** (default for local testing) and **webhook** modes available.
 
 ## Prerequisites
 
@@ -12,9 +12,9 @@ Before starting, ensure you have:
 
 ## Quick Start (3 minutes)
 
-### Option 1: Automated Setup (Recommended)
+### Option 1: Automated Setup (Recommended - Polling Mode)
 
-The setup script handles authentication, validation, and configuration:
+The setup script handles authentication, validation, and configuration with **polling as the default** for local testing:
 
 ```bash
 # 1. Install dependencies
@@ -25,8 +25,9 @@ poetry run python scripts/local_setup.py
 # This script will:
 # - Detect GitHub CLI authentication or guide you through manual setup
 # - Validate your GitHub access
-# - Create a complete .env file with proper formatting
-# - Suggest test repositories based on your organization
+# - Create a complete .env file with POLLING ENABLED by default
+# - Configure repositories for polling monitoring
+# - Set webhook mode as optional for testing
 
 # 3. Test the connection
 poetry run python scripts/test_github_connection.py
@@ -34,10 +35,13 @@ poetry run python scripts/test_github_connection.py
 # 4. Test repository access
 poetry run python scripts/test_target_repos.py
 
-# 5. Test webhook processing (includes security validation)
+# 5. Test the polling system
+poetry run python scripts/test_polling_system.py
+
+# 6. Test webhook processing (optional - for webhook mode testing)
 poetry run python scripts/test_webhook.py
 
-# 6. Start the server
+# 7. Start the server (polling mode active by default)
 poetry run python -m renovate_agent.main
 ```
 
@@ -58,7 +62,7 @@ If you prefer manual setup or automated setup fails:
    poetry run python scripts/local_setup.py
    ```
 
-### Option 3: Docker Testing
+### Option 3: Docker Testing (Dual Mode)
 
 For testing in a containerized environment similar to production:
 
@@ -67,7 +71,7 @@ For testing in a containerized environment similar to production:
 poetry install
 poetry run python scripts/local_setup.py
 
-# 2. Build and run with Docker
+# 2. Build and run with Docker (dual mode enabled)
 docker build -t renovate-agent:test .
 docker run --rm -p 8000:8000 --env-file .env renovate-agent:test
 
@@ -76,11 +80,13 @@ docker-compose up --build
 
 # 4. Test the containerized application
 # In another terminal:
-poetry run python scripts/test_webhook.py
+poetry run python scripts/test_polling_system.py  # Test polling
+poetry run python scripts/test_webhook.py         # Test webhooks
 ```
 
 **Docker Testing Benefits:**
 - ✅ **Production parity**: Tests the exact same container used in production
+- ✅ **Dual mode testing**: Both polling and webhook modes active
 - ✅ **Isolation**: Clean environment independent of local Python setup
 - ✅ **Multi-stage build**: Optimized image size and security
 - ✅ **Easy cleanup**: `docker-compose down` removes everything
@@ -104,19 +110,53 @@ docker run --rm -p 8000:8000 --env-file .env \
   renovate-agent:test
 ```
 
+## Operation Modes
+
+The system supports three operation modes for local testing:
+
+### 1. Polling Mode (Default for Local Testing)
+- **Best for**: Corporate firewalls, private networks, local development
+- **Latency**: 2-5 minutes (configurable)
+- **Requirements**: Outbound network connectivity only
+- **Benefits**: No webhook setup required, works anywhere
+
+### 2. Webhook Mode (Optional for Local Testing)
+- **Best for**: Testing webhook security and real-time processing
+- **Latency**: Real-time (immediate)
+- **Requirements**: Webhook simulation via test scripts
+- **Benefits**: Tests production webhook flow
+
+### 3. Dual Mode (Both Active)
+- **Best for**: Comprehensive testing and production simulation
+- **Features**: Maximum reliability with redundant event sources
+- **Benefits**: Tests both polling and webhook paths
+
 ## Testing Scripts Overview
 
 The project includes several testing scripts to validate functionality:
 
-| Script | Purpose | Expected Outcome |
-|--------|---------|------------------|
-| `test_github_connection.py` | Validates GitHub API access | ✅ Should succeed with valid token |
-| `test_target_repos.py` | Tests repository access and PR analysis | ✅ Should find repositories and PRs |
-| `test_webhook.py` | Tests webhook security and processing | ✅ 401 for unsigned, 200 for signed webhooks |
+| Script | Purpose | Expected Outcome | Operation Mode |
+|--------|---------|------------------|----------------|
+| `test_github_connection.py` | Validates GitHub API access | ✅ Should succeed with valid token | Both |
+| `test_target_repos.py` | Tests repository access and PR analysis | ✅ Should find repositories and PRs | Both |
+| `test_polling_system.py` | **NEW** Tests polling system components | ✅ Should poll repos and find PRs | Polling |
+| `test_webhook.py` | Tests webhook security and processing | ✅ 401 for unsigned, 200 for signed webhooks | Webhook |
 
 ## Understanding Test Results
 
 ### Expected Behaviors (These are CORRECT):
+
+#### Polling System Test (NEW)
+```bash
+🔄 Testing polling system...
+   ✅ Polling configuration valid
+   ✅ Rate limiter initialized
+   ✅ State tracker ready
+   ✅ Found 3 repositories for polling
+   ✅ Discovered 2 Renovate PRs
+   ✅ Polling orchestrator ready
+   🚀 Polling system operational!
+```
 
 #### Webhook Security Test
 ```bash
@@ -141,6 +181,7 @@ The project includes several testing scripts to validate functionality:
    Private: True
    Has Issues: True
    Open PRs: 5
+   Renovate PRs: 2 (polling will monitor these)
 ```
 
 ### Problematic Behaviors (These need fixing):
@@ -153,13 +194,20 @@ The project includes several testing scripts to validate functionality:
 
 #### Configuration Issues
 ```bash
-❌ GITHUB_TEST_REPOSITORIES environment variable not set
+❌ POLLING_REPOSITORIES environment variable not set
 ❌ Repository 'repo-name' must be in format 'org/repo'
+```
+
+#### Polling Issues
+```bash
+❌ Polling not enabled (check ENABLE_POLLING=true)
+❌ No repositories configured for polling
+❌ Rate limit exceeded - polling paused
 ```
 
 ## Environment Configuration
 
-The setup script creates a comprehensive `.env` file:
+The setup script creates a comprehensive `.env` file with **polling enabled by default**:
 
 ```bash
 # GitHub Authentication (Personal Access Token mode for development)
@@ -168,27 +216,41 @@ GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here
 GITHUB_ORGANIZATION=your-org-or-username
 GITHUB_WEBHOOK_SECRET=dev-secret
 
-# Test Repository Configuration
+# Operation Mode Configuration (DEFAULT: Polling enabled for local testing)
+ENABLE_POLLING=true                           # DEFAULT: Enabled for local testing
+ENABLE_WEBHOOKS=false                         # DEFAULT: Disabled (optional for testing)
+POLLING_INTERVAL_MINUTES=2                    # Poll every 2 minutes
+POLLING_MAX_CONCURRENT_REPOS=5                # Process 5 repos concurrently
+
+# Repository Configuration
 GITHUB_TEST_REPOSITORIES=org/repo1,org/repo2
+POLLING_REPOSITORIES=org/repo1,org/repo2     # Same as test repos by default
+
+# Polling Rate Limiting
+GITHUB_API_RATE_LIMIT=5000                   # API calls per hour
+POLLING_RATE_LIMIT_BUFFER=1000               # Reserve 1000 calls
+POLLING_RATE_LIMIT_THRESHOLD=0.8             # Throttle at 80% usage
 
 # Dashboard Configuration
-DASHBOARD_CREATION_MODE=renovate-only  # Options: test, any, none, renovate-only
+DASHBOARD_CREATION_MODE=renovate-only        # Options: test, any, none, renovate-only
 
 # Dependency Fixing Configuration
 ENABLE_DEPENDENCY_FIXING=true
 SUPPORTED_LANGUAGES=python,typescript,go
 
-# Security and Rate Limiting
-GITHUB_API_RATE_LIMIT=5000
-WEBHOOK_RATE_LIMIT=1000
+# Server Configuration (for webhook mode testing)
+HOST=127.0.0.1                              # Localhost only for security
+PORT=8000
 ```
 
 ## Stateless Architecture
 
-The Renovate PR Assistant uses a **stateless architecture**:
+The Renovate PR Assistant uses a **stateless architecture** with **dual-mode operation**:
 
 ✅ **No database required** - uses GitHub Issues as state store
 ✅ **No persistent storage** - state maintained in GitHub Issues
+✅ **Polling mode default** - works behind firewalls and private networks
+✅ **Webhook mode optional** - for testing real-time webhook processing
 ✅ **Single container deployment** - no external dependencies
 ✅ **Environment-based configuration** - all settings via environment variables
 
@@ -197,12 +259,37 @@ This means:
 - 🔒 **GitHub-native state** - dashboards are GitHub Issues
 - 📊 **Visible state** - repository dashboards are accessible via GitHub UI
 - 🧹 **No maintenance** - no database migrations or backups needed
+- 🌐 **Network flexible** - polling works in any network environment
 
-## Webhook Testing Details
+## Testing Details
 
-The webhook test script validates three critical aspects:
+### Polling System Testing (PRIMARY)
 
-### 1. Security Validation (401 Expected)
+The polling test script validates the complete polling system:
+
+```bash
+poetry run python scripts/test_polling_system.py
+# 🔄 Testing polling system configuration...
+#    ✅ Polling enabled in configuration
+#    ✅ Repository list configured
+#    ✅ Rate limiter initialized successfully
+#
+# 🔍 Testing repository discovery...
+#    ✅ Found 3 repositories for polling
+#    ✅ All repositories accessible
+#
+# 🔄 Testing PR discovery...
+#    ✅ Discovered 2 Renovate PRs across repositories
+#    ✅ State tracking operational
+#
+# 🚀 Polling system ready for operation!
+```
+
+### Webhook Testing (OPTIONAL)
+
+The webhook test script validates webhook security and processing:
+
+#### 1. Security Validation (401 Expected)
 Tests that unsigned webhooks are properly rejected:
 ```bash
 poetry run python scripts/test_webhook.py
@@ -211,7 +298,7 @@ poetry run python scripts/test_webhook.py
 #    ✅ Security working! Unsigned webhooks properly rejected
 ```
 
-### 2. Signed Webhook Processing (200 Expected)
+#### 2. Signed Webhook Processing (200 Expected)
 Tests that properly signed webhooks are accepted:
 ```bash
 # 🔐 Testing signed webhook (should be accepted)...
@@ -219,7 +306,7 @@ Tests that properly signed webhooks are accepted:
 #    ✅ Signed webhook accepted! Authentication working correctly
 ```
 
-### 3. Renovate PR Processing (200 Expected)
+#### 3. Renovate PR Processing (200 Expected)
 Tests actual Renovate PR processing logic:
 ```bash
 # 🔄 Testing Renovate PR webhook processing...
@@ -231,16 +318,16 @@ Tests actual Renovate PR processing logic:
 
 ### Configuration Issues
 
-#### Wrong Organization Format
+#### Wrong Operation Mode
 ```bash
-❌ Issue: Testing against 'ashmere' but .env has 'skyral-group'
-✅ Solution: Ensure GITHUB_ORGANIZATION matches your target org
+❌ Issue: "No operation mode enabled"
+✅ Solution: Ensure at least one of ENABLE_POLLING=true or ENABLE_WEBHOOKS=true
 ```
 
-#### Missing Test Repositories
+#### Missing Polling Repositories
 ```bash
-❌ Issue: GITHUB_TEST_REPOSITORIES not set
-✅ Solution: Add to .env: GITHUB_TEST_REPOSITORIES=org/repo1,org/repo2
+❌ Issue: POLLING_REPOSITORIES not set
+✅ Solution: Add to .env: POLLING_REPOSITORIES=org/repo1,org/repo2
 ```
 
 #### Invalid SUPPORTED_LANGUAGES Format
@@ -257,18 +344,24 @@ Tests actual Renovate PR processing logic:
 ✅ Solution: Ensure token has 'repo', 'read:org', 'read:user', 'write:issues' scopes
 ```
 
-#### Rate Limit Issues
+#### Rate Limit Issues (Polling Mode)
 ```bash
-❌ Issue: "Rate limit exceeded"
-✅ Solution: Wait for reset or use GitHub App authentication for higher limits
+❌ Issue: "Rate limit exceeded" during polling
+✅ Solution: Increase POLLING_INTERVAL_MINUTES or reduce POLLING_MAX_CONCURRENT_REPOS
 ```
 
 ### Runtime Issues
 
-#### Server Connection Failed
+#### Server Connection Failed (Webhook Mode)
 ```bash
 ❌ Issue: "Cannot connect to server. Is it running on localhost:8000?"
 ✅ Solution: Start server in another terminal: poetry run python -m renovate_agent.main
+```
+
+#### Polling Not Starting
+```bash
+❌ Issue: "Polling system not starting"
+✅ Solution: Check ENABLE_POLLING=true and repository configuration
 ```
 
 #### direnv Environment Loading Issues
@@ -287,9 +380,9 @@ Tests actual Renovate PR processing logic:
 
 ## Development Workflow
 
-### Poetry-based Development (Default)
+### Polling-based Development (Default)
 
-Typical development session:
+Typical development session with polling mode:
 
 ```bash
 # 1. Setup (once)
@@ -298,18 +391,62 @@ poetry run python scripts/local_setup.py
 # 2. Validate configuration
 poetry run python scripts/test_github_connection.py
 poetry run python scripts/test_target_repos.py
+poetry run python scripts/test_polling_system.py
 
-# 3. Development cycle
-poetry run python -m renovate_agent.main  # Start server
-poetry run python scripts/test_webhook.py  # Test in another terminal
+# 3. Start server (polling mode active by default)
+poetry run python -m renovate_agent.main
+# Server will automatically start polling configured repositories every 2 minutes
 
-# 4. Code changes
+# 4. Monitor polling in logs
+# Watch for: "Polling cycle started" and "Found X Renovate PRs"
+# Check GitHub Issues for dashboard updates
+
+# 5. Code changes
 # Make your changes...
 poetry run python -m pytest tests/  # Run tests
 poetry run pre-commit run --all-files  # Check code quality
 
-# 5. Re-test
-poetry run python scripts/test_webhook.py  # Verify changes work
+# 6. Re-test
+poetry run python scripts/test_polling_system.py  # Verify changes work
+```
+
+### Webhook-based Development (Optional)
+
+For testing webhook functionality:
+
+```bash
+# 1. Enable webhooks in .env
+# Set: ENABLE_WEBHOOKS=true
+
+# 2. Start server
+poetry run python -m renovate_agent.main
+
+# 3. Test webhooks in another terminal
+poetry run python scripts/test_webhook.py
+
+# 4. Simulate specific PR events
+poetry run python scripts/test_renovate_pr_simulation.py --org your-org --repo your-repo --pr 123
+```
+
+### Dual-mode Development
+
+For comprehensive testing:
+
+```bash
+# 1. Enable both modes in .env
+# Set: ENABLE_POLLING=true
+# Set: ENABLE_WEBHOOKS=true
+
+# 2. Start server (both modes active)
+poetry run python -m renovate_agent.main
+
+# 3. Test both systems
+poetry run python scripts/test_polling_system.py  # Test polling
+poetry run python scripts/test_webhook.py         # Test webhooks
+
+# Server will log events from both sources:
+# - "Polling cycle started" (every 2 minutes)
+# - "Webhook received" (when test webhook sent)
 ```
 
 ### Docker-based Development
@@ -325,9 +462,10 @@ poetry run python scripts/local_setup.py
 poetry run python scripts/test_github_connection.py
 poetry run python scripts/test_target_repos.py
 
-# 3. Development cycle with Docker
+# 3. Development cycle with Docker (dual mode by default)
 docker-compose up --build  # Start server in container
-poetry run python scripts/test_webhook.py  # Test in another terminal
+poetry run python scripts/test_polling_system.py  # Test polling
+poetry run python scripts/test_webhook.py         # Test webhooks
 
 # 4. Code changes with live reload (if volume mounted)
 # Make your changes... (container will restart automatically)
@@ -335,35 +473,31 @@ poetry run python -m pytest tests/  # Run tests on host
 poetry run pre-commit run --all-files  # Check code quality
 
 # 5. Re-test
-poetry run python scripts/test_webhook.py  # Verify changes work
+poetry run python scripts/test_polling_system.py  # Verify changes work
 
 # 6. Clean up
 docker-compose down  # Stop and remove containers
-```
-
-### Hybrid Development
-
-You can also mix approaches based on your needs:
-
-```bash
-# Use Docker for server, Poetry for scripts
-docker-compose up --build  # Run application in container
-poetry run python scripts/test_webhook.py  # Run scripts on host
-poetry run python -m pytest tests/  # Run tests on host
-
-# Or vice versa (useful for debugging)
-poetry run python -m renovate_agent.main  # Run application on host
-docker run --rm curlimages/curl:latest curl http://host.docker.internal:8000/health  # Test from container
 ```
 
 ## What You Get
 
 Once running, you'll have:
 
+**Polling Mode (Default)**:
+- **Background polling** of configured repositories every 2 minutes
+- **Automatic PR discovery** and processing
+- **GitHub Issues dashboards** with polling status and timestamps
+- **Rate limit aware** polling with intelligent throttling
+
+**Webhook Mode (Optional)**:
 - **Webhook endpoint:** `http://localhost:8000/webhooks/github`
+- **Security validation** with HMAC signature checking
+- **Real-time PR processing** when webhooks received
+
+**Both Modes**:
 - **Health check:** `http://localhost:8000/health`
 - **API documentation:** `http://localhost:8000/docs`
-- **GitHub Issues dashboards** created in test repositories
+- **GitHub Issues dashboards** with operation mode status
 - **Real GitHub API integration** for testing
 
 ## Production Readiness Check
@@ -371,25 +505,34 @@ Once running, you'll have:
 Before deploying to production, ensure:
 
 ✅ All test scripts pass
+✅ Polling system working (default mode tested)
 ✅ Webhook signature validation working (401 for unsigned requests)
 ✅ Repository access confirmed for target organizations
-✅ Environment variables properly configured
-✅ GitHub Issues created and updated correctly
+✅ Environment variables properly configured for chosen mode(s)
+✅ GitHub Issues created and updated correctly with polling metadata
 ✅ Dependency fixing working for supported languages
+✅ Rate limiting respecting GitHub API quotas
 
 ## Differences from Production
 
 | Aspect | Poetry (Local) | Docker (Local) | Production |
 |--------|----------------|----------------|------------|
+| **Default Mode** | 🔄 Polling | 🔄 Polling + Webhook | ⚡ Webhook (+ optional Polling) |
 | **Authentication** | Personal Access Token | Personal Access Token | GitHub App |
 | **Container** | Host Python | ✅ Ubuntu 24.04 + Python 3.13 | ✅ Ubuntu 24.04 + Python 3.13 |
 | **Rate Limits** | 5,000/hour (PAT) | 5,000/hour (PAT) | 5,000/hour per installation |
 | **Permissions** | All repos user can access | All repos user can access | Fine-grained per installation |
-| **Webhook Security** | ✅ Enabled (same as prod) | ✅ Enabled (same as prod) | ✅ Enabled |
+| **Security** | ✅ Enabled (same as prod) | ✅ Enabled (same as prod) | ✅ Enabled |
 | **State Storage** | ✅ GitHub Issues (same) | ✅ GitHub Issues (same) | ✅ GitHub Issues |
 | **Database** | ❌ None (stateless) | ❌ None (stateless) | ❌ None (stateless) |
 | **Build Process** | Poetry install | ✅ Multi-stage Docker build | ✅ Multi-stage Docker build |
 | **Environment** | Host dependencies | ✅ Isolated container | ✅ Isolated container |
+| **Network Reqs** | 🌐 Outbound only (polling) | 🌐 Outbound only (polling) | ⚡ Inbound + Outbound (webhook) |
+
+**Key Differences**:
+- **Local testing defaults to POLLING** for firewall compatibility
+- **Production typically uses WEBHOOKS** for real-time processing
+- **Both can run in DUAL MODE** for maximum reliability
 
 **Recommendation**: Use **Docker testing** for the highest production parity, especially before deployment.
 
@@ -397,10 +540,24 @@ Before deploying to production, ensure:
 
 Once local testing works:
 
-1. **Set up GitHub App** for production authentication
-2. **Deploy to cloud provider** (supports stateless architecture)
-3. **Configure production webhooks** pointing to your deployed instance
-4. **Set up monitoring** and alerting for production use
-5. **Configure repository allowlists** for target organizations
+1. **Choose production mode**:
+   - **Polling**: For private networks, corporate firewalls
+   - **Webhook**: For public deployments, real-time processing
+   - **Dual**: For maximum reliability
 
-The stateless architecture makes deployment simple - just a single container with environment variables!
+2. **Set up GitHub App** for production authentication (if using webhooks)
+
+3. **Deploy to cloud provider** with appropriate network configuration:
+   - **Polling**: Any environment with outbound connectivity
+   - **Webhook**: Public endpoint with inbound connectivity
+
+4. **Configure production settings**:
+   - **Webhook**: Set up GitHub webhooks pointing to your deployed instance
+   - **Polling**: Configure repository lists and intervals
+   - **Dual**: Enable both modes with appropriate configuration
+
+5. **Set up monitoring** and alerting for production use
+
+6. **Configure repository allowlists** for target organizations
+
+The stateless architecture with dual-mode operation makes deployment flexible - choose the mode that best fits your network environment!

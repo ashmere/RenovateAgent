@@ -2,10 +2,10 @@
 
 ## Overview
 
-RenovateAgent is an intelligent automation system that streamlines dependency management by automatically reviewing and managing [Renovate](https://github.com/renovatebot/renovate) pull requests across GitHub organizations. The system follows a **stateless architecture** with GitHub Issues as the sole state store, focusing on automated PR approval, dependency fixing, and repository health monitoring to reduce manual intervention in dependency updates.
+RenovateAgent is an intelligent automation system that streamlines dependency management by automatically reviewing and managing [Renovate](https://github.com/renovatebot/renovate) pull requests across GitHub organizations. The system follows a **stateless architecture** with GitHub Issues as the sole state store, supporting both **webhook-driven** and **polling-based** operation modes for maximum deployment flexibility, focusing on automated PR approval, dependency fixing, and repository health monitoring to reduce manual intervention in dependency updates.
 
-**Last Updated**: 2025-01-09
-**Version**: Current Architecture v0.4.0
+**Last Updated**: 2025-07-09
+**Version**: Current Architecture v0.5.0 (Dual-Mode Operation)
 
 ## System Architecture
 
@@ -18,11 +18,15 @@ graph TB
     end
 
     subgraph "Core Application"
+        MODE{Operation Mode}
         WL[Webhook Listener<br/>FastAPI Router]
+        PO[Polling Orchestrator<br/>Background Scheduler]
         PR[PR Processor<br/>Core Engine]
         GC[GitHub Client<br/>API Abstraction]
         DF[Dependency Fixer<br/>Language Support]
         IM[Issue Manager<br/>Dashboard State]
+        RL[Rate Limiter<br/>API Throttling]
+        ST[State Tracker<br/>Polling State]
     end
 
     subgraph "Language Fixers"
@@ -37,23 +41,157 @@ graph TB
         TEMP[Temporary Storage<br/>Git Clones]
     end
 
-    GH --> WL
+    GH --> MODE
+    MODE -->|Webhook Mode| WL
+    MODE -->|Polling Mode| PO
     RENOVATE --> GH
     WL --> PR
+    PO --> GC
+    PO --> ST
+    PO --> RL
+    PO --> PR
     PR --> GC
     PR --> DF
     PR --> IM
     GC --> GH
     GC --> ISSUES
+    ST --> IM
+    RL --> GC
     DF --> PY
     DF --> TS
     DF --> GO
     IM --> GC
     CONFIG --> PR
     CONFIG --> GC
+    CONFIG --> PO
     LOG --> WL
     LOG --> PR
+    LOG --> PO
     TEMP --> DF
+```
+
+## Dual-Mode Operation
+
+### Operation Modes
+
+The system supports two operation modes that can run independently or simultaneously:
+
+#### 1. Webhook Mode (Push-Based)
+- **Trigger**: GitHub webhooks pushed to the application
+- **Latency**: Real-time (immediate processing)
+- **Requirements**: Inbound network connectivity, webhook configuration
+- **Use Cases**: Traditional deployments with public endpoints
+
+#### 2. Polling Mode (Pull-Based)
+- **Trigger**: Periodic GitHub API queries
+- **Latency**: 2-5 minutes (configurable)
+- **Requirements**: Outbound network connectivity only
+- **Use Cases**: Corporate firewalls, private networks, development environments
+
+#### 3. Dual Mode (Hybrid)
+- **Configuration**: Both modes enabled simultaneously
+- **Redundancy**: Multiple triggers for the same events
+- **Deduplication**: State tracking prevents duplicate processing
+- **Benefits**: Maximum reliability and deployment flexibility
+
+### Mode Selection
+
+```mermaid
+graph TD
+    START[Application Start] --> CHECK_CONFIG[Check Configuration]
+    
+    CHECK_CONFIG --> WEBHOOK_ENABLED{Webhook Enabled?}
+    CHECK_CONFIG --> POLLING_ENABLED{Polling Enabled?}
+    
+    WEBHOOK_ENABLED -->|Yes| START_WEBHOOK[Start Webhook Listener]
+    POLLING_ENABLED -->|Yes| START_POLLING[Start Polling Orchestrator]
+    
+    START_WEBHOOK --> WEBHOOK_MODE[Webhook Mode Active]
+    START_POLLING --> POLLING_MODE[Polling Mode Active]
+    
+    WEBHOOK_MODE --> DUAL_CHECK{Both Active?}
+    POLLING_MODE --> DUAL_CHECK
+    
+    DUAL_CHECK -->|Yes| DUAL_MODE[Dual Mode Operation]
+    DUAL_CHECK -->|No| SINGLE_MODE[Single Mode Operation]
+```
+
+## Polling System Architecture
+
+### Polling Orchestrator
+
+**Purpose**: Manages periodic repository scanning and PR discovery through GitHub API queries.
+
+**Key Components**:
+- **Background Scheduler**: Asyncio-based task management
+- **Repository Iterator**: Concurrent repository processing
+- **Rate Limit Integration**: GitHub API quota management
+- **State Coordination**: Integration with existing state tracking
+
+**Key Methods**:
+- `start_polling()` - Initialize background polling tasks
+- `stop_polling()` - Graceful shutdown of polling operations
+- `_poll_repositories()` - Main polling loop for repository scanning
+- `_process_repository_prs()` - Discover and process new PRs
+- `_should_process_pr()` - Determine if PR needs processing
+
+**Concurrency Model**:
+```python
+# Concurrent repository processing
+async with asyncio.TaskGroup() as tg:
+    for repo in repositories:
+        tg.create_task(self._process_repository_prs(repo))
+```
+
+### Polling State Tracker
+
+**Purpose**: Extends the existing Issue Manager to track polling-specific state and prevent duplicate processing.
+
+**State Management**:
+- **Last Poll Timestamps**: Track when repositories were last checked
+- **PR Processing History**: Remember processed PRs to prevent duplicates
+- **Polling Metadata**: Store polling configuration and status
+- **Dashboard Integration**: Extend existing GitHub Issues dashboard
+
+**Key Methods**:
+- `update_polling_state()` - Record polling activity
+- `should_process_pr()` - Check if PR already processed
+- `get_last_poll_time()` - Retrieve last polling timestamp
+- `update_dashboard_polling_info()` - Add polling status to dashboard
+
+**Dashboard Enhancements**:
+```json
+{
+  "polling": {
+    "enabled": true,
+    "last_poll": "2025-07-09T10:30:00Z",
+    "interval_minutes": 2,
+    "processed_prs": ["123", "124", "125"]
+  }
+}
+```
+
+### Rate Limiter
+
+**Purpose**: Monitor and respect GitHub API rate limits to prevent quota exhaustion during polling operations.
+
+**Rate Limit Management**:
+- **Quota Monitoring**: Track remaining API calls
+- **Intelligent Throttling**: Adjust polling frequency based on quota
+- **Burst Protection**: Prevent rapid API consumption
+- **Recovery Handling**: Automatic backoff on rate limit hits
+
+**Key Methods**:
+- `check_rate_limit()` - Verify API quota availability
+- `wait_if_needed()` - Implement intelligent backoff
+- `get_reset_time()` - Calculate rate limit reset timing
+- `should_throttle()` - Determine if throttling needed
+
+**Throttling Strategy**:
+```python
+# Adaptive polling based on rate limits
+if remaining_calls < (repositories * 5):  # 5 calls per repo minimum
+    await self._wait_for_rate_limit_reset()
 ```
 
 ## Stateless Architecture Principles
@@ -309,11 +447,45 @@ GITHUB_APP_ID=0
 GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your-token
 ```
 
+**Operation Mode Configuration**:
+```bash
+# Webhook Mode (default for production)
+ENABLE_WEBHOOKS=true
+HOST=0.0.0.0
+PORT=8000
+
+# Polling Mode (default for local development)
+ENABLE_POLLING=true
+POLLING_INTERVAL_MINUTES=2
+POLLING_REPOSITORIES=org/repo1,org/repo2
+
+# Dual Mode (both enabled)
+ENABLE_WEBHOOKS=true
+ENABLE_POLLING=true
+```
+
 **Repository Management**:
 ```bash
 GITHUB_ORGANIZATION=your-organization
 GITHUB_REPOSITORY_ALLOWLIST=repo1,repo2,repo3  # Optional filtering
 GITHUB_TEST_REPOSITORIES=org/test-repo1,org/test-repo2
+
+# Polling-specific repository configuration
+POLLING_REPOSITORIES=org/repo1,org/repo2  # Specific repos for polling
+# If not set, uses GITHUB_TEST_REPOSITORIES or discovers automatically
+```
+
+**Polling Configuration**:
+```bash
+# Polling behavior
+POLLING_INTERVAL_MINUTES=2                    # How often to check repositories
+POLLING_MAX_CONCURRENT_REPOS=5                # Concurrent repository processing
+POLLING_RATE_LIMIT_BUFFER=1000               # API calls to reserve
+POLLING_ENABLE_ADAPTIVE_INTERVAL=true        # Adjust interval based on activity
+
+# Rate limiting
+GITHUB_API_RATE_LIMIT=5000                   # API calls per hour
+POLLING_RATE_LIMIT_THRESHOLD=0.8             # Throttle at 80% usage
 ```
 
 **Dependency Fixing**:
@@ -335,11 +507,94 @@ LOG_FORMAT=json
 
 ### Configuration Validation
 
+- **Mode Validation**: Ensure at least one operation mode is enabled
+- **Polling Configuration**: Validate interval settings and repository lists
+- **Rate Limit Settings**: Ensure polling respects API quotas
 - **Field Validation**: Pydantic-based configuration validation
 - **Environment Loading**: Automatic `.env` file loading
 - **Type Conversion**: String-to-list conversion for comma-separated values
 - **Default Values**: Sensible defaults for all settings
 - **Development Mode**: Automatic detection based on authentication method
+
+## Data Flow
+
+### 1. Dual-Mode Event Processing
+
+```mermaid
+graph TD
+    WEBHOOK[GitHub Webhook] --> WEBHOOK_VALIDATE[Validate Signature]
+    POLLING[Polling Timer] --> POLLING_SCAN[Scan Repositories]
+    
+    WEBHOOK_VALIDATE --> WEBHOOK_PARSE[Parse JSON Payload]
+    POLLING_SCAN --> POLLING_DISCOVER[Discover New PRs]
+    
+    WEBHOOK_PARSE --> CHECK_EVENT[Check Event Type]
+    POLLING_DISCOVER --> CHECK_STATE[Check Processing State]
+    
+    CHECK_EVENT --> WEBHOOK_PROCESS[Process Webhook Event]
+    CHECK_STATE --> POLLING_PROCESS[Process Discovered PR]
+    
+    WEBHOOK_PROCESS --> UNIFIED_PROCESSOR[Unified PR Processor]
+    POLLING_PROCESS --> UNIFIED_PROCESSOR
+    
+    UNIFIED_PROCESSOR --> UPDATE_STATE[Update Processing State]
+    UPDATE_STATE --> RESPONSE[JSON Response / State Update]
+```
+
+### 2. Polling Discovery Flow
+
+```mermaid
+graph TD
+    POLL_START[Polling Cycle Start] --> GET_REPOS[Get Repository List]
+    GET_REPOS --> CHECK_RATE_LIMIT[Check API Rate Limit]
+    
+    CHECK_RATE_LIMIT --> SUFFICIENT{Sufficient Quota?}
+    SUFFICIENT -->|No| WAIT[Wait for Rate Limit Reset]
+    SUFFICIENT -->|Yes| CONCURRENT_SCAN[Concurrent Repository Scan]
+    
+    WAIT --> CHECK_RATE_LIMIT
+    
+    CONCURRENT_SCAN --> GET_PRS[Get Open PRs]
+    GET_PRS --> FILTER_RENOVATE[Filter Renovate PRs]
+    FILTER_RENOVATE --> CHECK_PROCESSED[Check If Already Processed]
+    
+    CHECK_PROCESSED --> NEW_PR{New PR?}
+    NEW_PR -->|Yes| PROCESS_PR[Process PR]
+    NEW_PR -->|No| SKIP_PR[Skip - Already Processed]
+    
+    PROCESS_PR --> UPDATE_POLL_STATE[Update Polling State]
+    SKIP_PR --> NEXT_REPO[Continue to Next Repository]
+    UPDATE_POLL_STATE --> NEXT_REPO
+    
+    NEXT_REPO --> ALL_DONE{All Repos Done?}
+    ALL_DONE -->|No| GET_PRS
+    ALL_DONE -->|Yes| SCHEDULE_NEXT[Schedule Next Poll]
+```
+
+### 3. State Deduplication Flow
+
+```mermaid
+graph TD
+    EVENT[PR Event] --> SOURCE{Event Source}
+    
+    SOURCE -->|Webhook| WEBHOOK_ID[Extract PR ID from Webhook]
+    SOURCE -->|Polling| POLLING_ID[Extract PR ID from API]
+    
+    WEBHOOK_ID --> CHECK_STATE[Check Processing State]
+    POLLING_ID --> CHECK_STATE
+    
+    CHECK_STATE --> PROCESSED{Already Processed?}
+    
+    PROCESSED -->|Yes| LOG_SKIP[Log: Duplicate Event Skipped]
+    PROCESSED -->|No| MARK_PROCESSING[Mark PR as Processing]
+    
+    LOG_SKIP --> RETURN_SUCCESS[Return Success]
+    MARK_PROCESSING --> PROCESS_PR[Process PR Event]
+    
+    PROCESS_PR --> MARK_COMPLETE[Mark PR as Processed]
+    MARK_COMPLETE --> UPDATE_DASHBOARD[Update Dashboard]
+    UPDATE_DASHBOARD --> RETURN_SUCCESS
+```
 
 ## Performance Characteristics
 
@@ -350,17 +605,36 @@ LOG_FORMAT=json
 - **Dependency Fixing**: 30-180 seconds (depends on repository size)
 - **Dashboard Updates**: 300-800ms for GitHub Issue updates
 
+### Polling Processing Performance
+
+- **Repository Scan**: 100-300ms per repository (API dependent)
+- **PR Discovery**: 50-150ms per repository with open PRs
+- **Concurrent Processing**: 5 repositories processed simultaneously
+- **Full Polling Cycle**: 30-60 seconds for 10 repositories
+- **Adaptive Intervals**: 2-5 minutes based on activity and rate limits
+
 ### GitHub API Usage
 
-- **Rate Limit Awareness**: Automatic detection and respect
-- **Efficient Calls**: Minimize API calls through intelligent caching
-- **State Management**: GitHub Issues as persistent state store
-- **Error Handling**: Graceful degradation on API failures
+#### Webhook Mode
+- **Rate Limit Usage**: Event-driven, minimal API consumption
+- **Typical Usage**: 50-200 API calls per day for active repositories
+- **Burst Patterns**: High usage during dependency update waves
+
+#### Polling Mode
+- **Rate Limit Usage**: Continuous API consumption
+- **Typical Usage**: 15,000-36,000 API calls per day (2-minute intervals)
+- **Per Repository**: ~3-5 API calls per polling cycle
+- **Quota Management**: Intelligent throttling to respect rate limits
+
+#### Dual Mode
+- **Combined Usage**: Webhook burst + polling baseline
+- **Deduplication**: No duplicate processing overhead
+- **Efficiency**: Best of both modes without redundant API calls
 
 ### Resource Usage
 
 - **Memory**: 50-100MB baseline, 200-500MB during dependency fixing
-- **CPU**: Low baseline, high during git operations and dependency resolution
+- **CPU**: Low baseline, moderate during concurrent polling, high during git operations
 - **Disk**: Temporary repository clones (cleaned up automatically)
 - **Network**: GitHub API calls and git operations
 - **Storage**: No persistent storage required - fully stateless
@@ -404,7 +678,7 @@ EXPOSE 8000
 CMD ["python", "-m", "renovate_agent.main"]
 ```
 
-**Docker Compose (Simplified)**:
+**Docker Compose (Dual Mode)**:
 ```yaml
 version: '3.8'
 services:
@@ -413,35 +687,70 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # Authentication
       - GITHUB_APP_ID=${GITHUB_APP_ID:-0}
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
       - GITHUB_ORGANIZATION=${GITHUB_ORGANIZATION}
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+      
+      # Operation modes
+      - ENABLE_WEBHOOKS=${ENABLE_WEBHOOKS:-true}
+      - ENABLE_POLLING=${ENABLE_POLLING:-true}
+      - POLLING_INTERVAL_MINUTES=${POLLING_INTERVAL_MINUTES:-2}
+      
+      # Repository configuration
+      - POLLING_REPOSITORIES=${POLLING_REPOSITORIES}
     volumes:
       - ./config/private-key.pem:/app/private-key.pem:ro
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 ```
 
 ### Production Requirements
 
-- **Reverse Proxy**: Nginx or similar for SSL/TLS termination and load balancing
-- **Health Monitoring**: Built-in `/health` endpoint for load balancer checks
-- **Logging**: Centralized log aggregation (JSON structured logs)
-- **Secrets Management**: Secure GitHub App private key and webhook secret storage
-- **Container Orchestration**: Kubernetes or Docker Swarm for high availability
+#### Webhook Mode Production
+- **Public Endpoint**: Accessible URL for GitHub webhooks
+- **TLS/SSL**: Required for webhook security
+- **Reverse Proxy**: Nginx or similar for SSL termination
+- **Firewall**: Inbound connectivity on webhook port
+
+#### Polling Mode Production
+- **Outbound Only**: No inbound connectivity required
+- **Private Networks**: Works behind corporate firewalls
+- **VPN Deployment**: Suitable for private cloud deployments
+- **API Quotas**: Monitor GitHub API usage
+
+#### Dual Mode Production
+- **Best of Both**: Maximum reliability and flexibility
+- **Redundancy**: Multiple event sources
+- **Complexity**: Slightly higher operational overhead
 
 ### Scaling Considerations
 
+#### Webhook Mode Scaling
 - **Horizontal Scaling**: Multiple stateless instances behind load balancer
-- **No Database**: Eliminates database bottlenecks and complexity
-- **GitHub API Limits**: Primary scaling constraint is GitHub API rate limits
-- **Resource Isolation**: Each instance operates independently
-- **Auto-scaling**: Can scale based on webhook volume and CPU usage
+- **Event Distribution**: Webhooks distributed across instances
+- **Instant Scaling**: Immediate response to webhook volume
+
+#### Polling Mode Scaling
+- **Repository Partitioning**: Distribute repositories across instances
+- **Coordinated Polling**: Prevent duplicate processing
+- **Resource-Based Scaling**: Scale based on repository count
+
+#### GitHub API Limits
+- **Primary Constraint**: API rate limits affect both modes
+- **Per-Installation Limits**: 5,000 calls per hour for GitHub Apps
+- **Efficient Usage**: Minimize API calls through intelligent caching
+- **Quota Distribution**: Share quotas across polling instances
 
 ### High Availability Setup
 
 ```yaml
-# Kubernetes deployment example
+# Kubernetes deployment example (Dual Mode)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -458,18 +767,30 @@ spec:
     spec:
       containers:
       - name: renovate-agent
-        image: renovate-agent:0.4.0
+        image: renovate-agent:0.5.0
         ports:
         - containerPort: 8000
         env:
         - name: GITHUB_ORGANIZATION
           value: "your-org"
+        - name: ENABLE_WEBHOOKS
+          value: "true"
+        - name: ENABLE_POLLING
+          value: "true"
+        - name: POLLING_INTERVAL_MINUTES
+          value: "2"
         livenessProbe:
           httpGet:
             path: /health
             port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
 ```
 
 ## Error Handling and Resilience
@@ -499,12 +820,21 @@ spec:
 
 ## Architecture Benefits
 
+### Deployment Flexibility
+
+- **Network Adaptability**: Works in any network environment
+- **Webhook Mode**: Traditional deployments with public endpoints
+- **Polling Mode**: Corporate firewalls and private networks
+- **Dual Mode**: Maximum reliability with redundant event sources
+- **Simple Migration**: Easy transition between modes
+
 ### Automation Efficiency
 
 - **Reduced Manual Work**: Automatic PR approval for passing checks
 - **Fast Dependency Resolution**: Automated lock file updates
 - **Real-time Monitoring**: GitHub Issues provide instant visibility
 - **Scalable Processing**: Handle multiple repositories simultaneously
+- **Mode Flexibility**: Choose optimal mode for environment
 
 ### Reliability and Safety
 
@@ -513,6 +843,7 @@ spec:
 - **Automatic Cleanup**: Temporary resources cleaned up after each operation
 - **Audit Trail**: Complete logging and GitHub Issue history
 - **Security First**: Cryptographic validation of all inputs
+- **Redundant Processing**: Dual mode provides backup event sources
 
 ### Developer Experience
 
@@ -521,6 +852,7 @@ spec:
 - **Simple Deployment**: Single container with minimal configuration
 - **Easy Debugging**: All state visible in GitHub Issues and structured logs
 - **Cost Effective**: No additional infrastructure costs for databases or caches
+- **Local Development**: Polling mode perfect for local testing
 
 ### Operational Simplicity
 
@@ -529,3 +861,4 @@ spec:
 - **Backup Free**: No application data to backup (GitHub provides persistence)
 - **Disaster Recovery**: Simply redeploy container with same configuration
 - **Development Parity**: Local development identical to production environment
+- **Network Flexibility**: Adapts to any network security requirements
