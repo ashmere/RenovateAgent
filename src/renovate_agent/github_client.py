@@ -8,7 +8,7 @@ and error handling for GitHub App integration.
 import asyncio
 import time
 from pathlib import Path
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 import httpx
 import jwt
@@ -40,10 +40,10 @@ class GitHubClient:
             config: GitHub App configuration or Settings object
         """
         self.config = config
-        self._github: Optional[Github] = None
-        self._installation_id: Optional[int] = None
-        self._rate_limit_reset_time: Optional[float] = None
-        self._rate_limit_remaining: Optional[int] = None
+        self._github: Github | None = None
+        self._installation_id: int | None = None
+        self._rate_limit_reset_time: float | None = None
+        self._rate_limit_remaining: int | None = None
 
     async def _get_github_instance(self) -> Github:
         """Get authenticated GitHub instance."""
@@ -107,9 +107,7 @@ class GitHubClient:
             "iss": self.config.app_id,
         }
 
-        token = cast(
-            Union[str, bytes], jwt.encode(payload, private_key, algorithm="RS256")
-        )
+        token = cast(str | bytes, jwt.encode(payload, private_key, algorithm="RS256"))
         # Handle jwt.encode returning bytes in some versions
         if isinstance(token, bytes):
             return token.decode("utf-8")
@@ -341,7 +339,7 @@ class GitHubClient:
         repo: Repository,
         title: str,
         body: str,
-        labels: Optional[list[str]] = None,
+        labels: list[str] | None = None,
     ) -> Issue:
         """
         Create a new issue.
@@ -378,9 +376,9 @@ class GitHubClient:
         self,
         repo: Repository,
         issue_number: int,
-        title: Optional[str] = None,
-        body: Optional[str] = None,
-        state: Optional[str] = None,
+        title: str | None = None,
+        body: str | None = None,
+        state: str | None = None,
     ) -> Issue:
         """
         Update an existing issue.
@@ -423,9 +421,7 @@ class GitHubClient:
             )
             raise GitHubAPIError(f"Failed to update issue {issue_number}: {e}") from e
 
-    async def find_issue_by_title(
-        self, repo: Repository, title: str
-    ) -> Optional[Issue]:
+    async def find_issue_by_title(self, repo: Repository, title: str) -> Issue | None:
         """
         Find an issue by title.
 

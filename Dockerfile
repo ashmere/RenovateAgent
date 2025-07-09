@@ -1,5 +1,5 @@
 # Multi-stage build for production
-FROM python:3.12-slim as builder
+FROM python:3.13-slim as builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -31,7 +31,7 @@ COPY src/ ./src/
 RUN poetry install --only-root
 
 # Production image
-FROM python:3.12-slim as production
+FROM python:3.13-slim as production
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \

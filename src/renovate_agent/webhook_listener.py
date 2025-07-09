@@ -8,7 +8,7 @@ and routes events to appropriate processors.
 import hashlib
 import hmac
 import json
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -84,10 +84,10 @@ class WebhookListener:
     async def handle_github_webhook(
         self,
         request: Request,
-        x_github_event: Optional[str] = Header(None, alias="X-GitHub-Event"),
-        x_hub_signature_256: Optional[str] = Header(None, alias="X-Hub-Signature-256"),
-        x_github_delivery: Optional[str] = Header(None, alias="X-GitHub-Delivery"),
-        user_agent: Optional[str] = Header(None, alias="User-Agent"),
+        x_github_event: str | None = Header(None, alias="X-GitHub-Event"),
+        x_hub_signature_256: str | None = Header(None, alias="X-Hub-Signature-256"),
+        x_github_delivery: str | None = Header(None, alias="X-GitHub-Delivery"),
+        user_agent: str | None = Header(None, alias="User-Agent"),
     ) -> JSONResponse:
         """
         Handle incoming GitHub webhook events.

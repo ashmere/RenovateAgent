@@ -7,7 +7,7 @@ projects using npm or yarn package managers.
 
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 
@@ -34,7 +34,7 @@ class TypeScriptNpmFixer(DependencyFixer):
         super().__init__(timeout)
         self.language = "typescript"
         self.supported_files = ["package.json", "package-lock.json", "yarn.lock"]
-        self.package_manager: Optional[str] = None  # Will be detected: 'npm' or 'yarn'
+        self.package_manager: str | None = None  # Will be detected: 'npm' or 'yarn'
 
     async def can_fix(self, repo_path: Path) -> bool:
         """

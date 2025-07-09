@@ -5,7 +5,7 @@ This module provides a factory for creating appropriate dependency fixers
 based on repository characteristics.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 from github.Repository import Repository
@@ -69,7 +69,7 @@ class DependencyFixerFactory:
             fixers=[f.__class__.__name__ for f in self.fixers],
         )
 
-    async def get_fixer(self, repo: Repository) -> Optional[DependencyFixer]:
+    async def get_fixer(self, repo: Repository) -> DependencyFixer | None:
         """
         Get appropriate dependency fixer for a repository.
 

@@ -5,7 +5,7 @@ This module handles environment variables, settings validation, and configuratio
 management using Pydantic Settings for type safety and validation.
 """
 
-from typing import Any, Union
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -105,7 +105,7 @@ class Settings(BaseSettings):
     enable_dependency_fixing: bool = Field(
         default=True, description="Enable dependency fixing"
     )
-    supported_languages: Union[str, list[str]] = Field(
+    supported_languages: str | list[str] = Field(
         default="python,typescript,go",
         description="Supported languages for dependency fixing (comma-separated)",
     )
@@ -133,20 +133,20 @@ class Settings(BaseSettings):
     webhook_rate_limit: int = Field(default=1000, description="Webhook rate limit")
 
     # Security
-    allowed_origins: Union[str, list[str]] = Field(
+    allowed_origins: str | list[str] = Field(
         default="https://github.com",
         description="Allowed CORS origins (comma-separated)",
     )
     enable_cors: bool = Field(default=True, description="Enable CORS")
 
     # Repository Management
-    github_repository_allowlist: Union[str, list[str]] = Field(
+    github_repository_allowlist: str | list[str] = Field(
         default="",
         description="Optional allowlist of repositories to monitor "
         "(comma-separated repo names without org prefix). "
         "If empty, monitors all repos in org.",
     )
-    github_test_repositories: Union[str, list[str]] = Field(
+    github_test_repositories: str | list[str] = Field(
         default="",
         description="Test repositories for validation and testing "
         "(comma-separated full names with org/repo format)",

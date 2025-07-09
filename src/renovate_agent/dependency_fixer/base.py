@@ -136,7 +136,7 @@ class DependencyFixer(ABC):
             )
             return True
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("Repository clone timeout", repo_url=repo_url, branch=branch)
             return False
         except Exception as e:
@@ -180,7 +180,7 @@ class DependencyFixer(ABC):
                 "success": result.returncode == 0,
             }
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("Command timeout", command=" ".join(cmd), cwd=str(cwd))
             return {
                 "returncode": -1,

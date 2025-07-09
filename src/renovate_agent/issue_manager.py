@@ -7,8 +7,8 @@ about open Renovate PRs and generating human-readable reports.
 
 import json
 import re
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 from github.Issue import Issue
@@ -123,7 +123,7 @@ class IssueStateManager:
             ) from e
 
     async def update_dashboard_issue(
-        self, repo: Repository, pr_data: Optional[dict[str, Any]] = None
+        self, repo: Repository, pr_data: dict[str, Any] | None = None
     ) -> bool:
         """
         Update the dashboard issue with current repository state.
@@ -176,8 +176,8 @@ class IssueStateManager:
         """
         return {
             "repository": repo.full_name,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "last_updated": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
+            "last_updated": datetime.now(UTC).isoformat(),
             "open_renovate_prs": [],
             "recently_processed": [],
             "statistics": {
@@ -190,7 +190,7 @@ class IssueStateManager:
         }
 
     async def _collect_repository_data(
-        self, repo: Repository, pr_data: Optional[dict[str, Any]] = None
+        self, repo: Repository, pr_data: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """
         Collect current repository data for dashboard.
@@ -239,9 +239,9 @@ class IssueStateManager:
             return {
                 "repository": repo.full_name,
                 "created_at": existing_data.get(
-                    "created_at", datetime.now(timezone.utc).isoformat()
+                    "created_at", datetime.now(UTC).isoformat()
                 ),
-                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "last_updated": datetime.now(UTC).isoformat(),
                 "open_renovate_prs": renovate_prs,
                 "recently_processed": existing_data.get("recently_processed", [])[
                     -10:
@@ -536,7 +536,7 @@ The Renovate PR Assistant is actively monitoring this repository for Renovate PR
             pr_record = {
                 "pr_number": pr_number,
                 "action": action,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "success": result.get("success", True),
                 "details": result,
             }
