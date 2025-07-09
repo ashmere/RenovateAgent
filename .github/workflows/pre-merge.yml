@@ -43,6 +43,12 @@ jobs:
         run: |
           poetry run pre-commit run --all-files --verbose --show-diff-on-failure
         timeout-minutes: 5
+        env:
+          GITHUB_PERSONAL_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ORGANIZATION: ashmere
+          GITHUB_APP_ID: 0
+          GITHUB_TEST_REPOSITORIES: ashmere/RenovateAgent
+          DEBUG: true
 
   test:
     runs-on: ubuntu-latest
