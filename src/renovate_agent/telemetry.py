@@ -4,8 +4,11 @@ OpenTelemetry configuration and instrumentation for RenovateAgent.
 This module provides comprehensive observability setup including:
 - Distributed tracing for request flows
 - Metrics collection for performance monitoring
-- Structured logging with trace correlation
+- Structured logging with trace correlation via OpenTelemetry logging instrumentation
 - Automatic instrumentation for FastAPI, HTTPX, and other libraries
+
+Note: Uses OpenTelemetry's native logging instrumentation instead of python-json-logger
+for consistent structured logging with automatic trace context injection.
 """
 
 import os
