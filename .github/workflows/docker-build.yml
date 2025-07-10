@@ -27,7 +27,19 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  test:
+    name: Run Tests
+    uses: ./.github/workflows/test-suite.yml
+    with:
+      python-versions: '["3.12"]'  # Only test primary version for Docker builds
+      run-import-tests: true
+      run-config-tests: true
+      run-startup-tests: true
+    secrets: inherit
+
   build-and-push:
+    name: Build and Push Docker Image
+    needs: test  # Only build if tests pass
     runs-on: ubuntu-latest
     permissions:
       contents: read
