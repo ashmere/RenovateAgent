@@ -792,6 +792,243 @@ await metrics.record_cache_hit(repo_name, hit=True)
 metrics_data = await metrics.get_daily_summary()
 ```
 
+## Release Process and Version Management
+
+### Version Management Strategy
+
+The Renovate PR Assistant follows a **"development always ahead"** versioning strategy to ensure clear separation between development and stable releases:
+
+#### **Core Principle**
+- **Development builds** use unreleased version numbers (e.g., `0.6.1-dev`)
+- **Stable releases** use semantic versioning tags (e.g., `v0.6.0`)
+- **Post-release**: Immediately bump to next patch version to prevent conflicts
+
+#### **Version Lifecycle Example**
+```bash
+# Current development state
+pyproject.toml: version = "0.5.1"
+# Development builds: 0.5.1-dev, 0.5.1-dev-abc1234
+
+# Release preparation
+git tag v0.6.0
+# Stable release: 0.6.0, stable, latest
+
+# Post-release (CRITICAL STEP)
+pyproject.toml: version = "0.6.1"  # Bump immediately after release
+# Future development builds: 0.6.1-dev, 0.6.1-dev-def5678
+```
+
+### Docker Image Tagging Strategy
+
+The project uses a sophisticated tagging strategy that separates development and stable images:
+
+#### **Development Images (Dev Builds)**
+| Trigger | Tags Generated | Example |
+|---------|---------------|---------|
+| **Manual Dispatch** | `{version}-dev`, `dev` | `0.5.1-dev`, `dev` |
+| **Push to Main** | `{version}-dev-{sha}`, `dev` | `0.5.1-dev-abc1234`, `dev` |
+
+#### **Stable Images (Release Builds)**
+| Trigger | Tags Generated | Example |
+|---------|---------------|---------|
+| **Git Tag Push** | `{version}`, `stable`, `latest`* | `0.6.0`, `stable`, `latest` |
+
+**Note**: `latest` is only applied to stable releases (not pre-release tags like `v1.0.0-beta.1`)
+
+#### **Cache Separation**
+- Development and stable builds use separate cache scopes
+- Improves build performance and prevents cache conflicts
+- Cache keys: `development` vs `stable`
+
+### Release Process
+
+#### **Step 1: Pre-Release Preparation**
+
+1. **Ensure Clean State**
+   ```bash
+   git status  # Should be clean
+   git pull origin main  # Latest changes
+   ```
+
+2. **Run Full Test Suite**
+   ```bash
+   ./test-runner.sh  # Comprehensive testing
+   poetry run pytest --cov=renovate_agent tests/
+   ```
+
+3. **Update Documentation**
+   ```bash
+   # Update version references in documentation
+   # Update CHANGELOG.md with release notes
+   # Verify all examples still work
+   ```
+
+#### **Step 2: Create Release Tag**
+
+1. **Create Semantic Version Tag**
+   ```bash
+   # Example: releasing version 0.6.0
+   git tag v0.6.0
+   git push origin v0.6.0
+   ```
+
+2. **Automatic Build Trigger**
+   - GitHub Action automatically validates semantic versioning
+   - Builds multi-architecture images (linux/amd64, linux/arm64)
+   - Tags with: `0.6.0`, `stable`, `latest`
+   - Generates security attestations
+
+#### **Step 3: Post-Release Version Bump (CRITICAL)**
+
+**Immediately after releasing a tag**, bump the version in `pyproject.toml`:
+
+```bash
+# If you just released v0.6.0, bump to 0.6.1
+poetry version patch  # 0.6.0 → 0.6.1
+git add pyproject.toml
+git commit -m "chore: bump version to 0.6.1 post-release"
+git push origin main
+```
+
+**Why This is Critical:**
+- Prevents development builds from conflicting with released versions
+- Ensures `0.6.0-dev` images don't appear after `0.6.0` release
+- Maintains clear separation between dev and stable versions
+
+#### **Step 4: Verification**
+
+1. **Verify Docker Images**
+   ```bash
+   # Check GitHub Container Registry
+   # Verify all expected tags are present
+   # Test image functionality
+   ```
+
+2. **Update Production Deployments**
+   ```bash
+   # Update docker-compose.yml or Kubernetes manifests
+   # Deploy stable release to production
+   ```
+
+### AI Assistant Guidelines for Version Management
+
+**For AI Assistants working with this codebase:**
+
+#### **After Any Release Tag Creation**
+1. **Immediately check** `pyproject.toml` version
+2. **If version matches the released tag**, bump to next patch version:
+   ```bash
+   # If just released v0.6.0 and pyproject.toml shows "0.6.0"
+   poetry version patch  # Bumps to 0.6.1
+   git add pyproject.toml
+   git commit -m "chore: bump version to $(poetry version --short) post-release"
+   ```
+
+#### **Version Bump Decision Matrix**
+| Current Version | Released Tag | Next Development Version |
+|----------------|-------------|-------------------------|
+| `0.5.1` | `v0.6.0` | `0.6.1` |
+| `1.0.0` | `v1.0.0` | `1.0.1` |
+| `1.5.0` | `v2.0.0` | `2.0.1` |
+
+#### **When NOT to Bump**
+- Version already ahead of released tag
+- Working on a feature branch (not main)
+- Release tag is a pre-release (e.g., `v1.0.0-beta.1`)
+
+### Development Workflow Integration
+
+#### **Branch Protection Strategy**
+```bash
+# Development workflow
+main branch: Contains unreleased version (e.g., 0.6.1)
+  ↓ Development builds: 0.6.1-dev, 0.6.1-dev-{sha}
+
+# Release workflow
+release tag: v0.6.0 → stable images: 0.6.0, stable, latest
+  ↓ Immediate post-release bump
+
+main branch: Bumped to next version (e.g., 0.6.2)
+  ↓ Future development builds: 0.6.2-dev, 0.6.2-dev-{sha}
+```
+
+#### **Semantic Versioning Validation**
+The workflow automatically validates that tags follow semantic versioning:
+
+```bash
+# Valid tags
+v1.0.0, v0.5.1, v2.1.3
+
+# Invalid tags (will fail build)
+v1.0, 1.0.0, release-1.0.0, v1.0.0-patch
+```
+
+#### **Pre-release Support**
+For pre-release versions, the `latest` tag is skipped:
+
+```bash
+# Pre-release tag
+v1.0.0-beta.1 → images: 1.0.0-beta.1, stable
+# Note: NO 'latest' tag for pre-releases
+```
+
+### Troubleshooting Release Issues
+
+#### **Common Problems and Solutions**
+
+**Problem**: Development images appearing with released version numbers
+```bash
+# Bad: 0.6.0-dev appearing after v0.6.0 release
+# Solution: Ensure post-release version bump was completed
+poetry version patch
+git add pyproject.toml && git commit -m "chore: post-release version bump"
+```
+
+**Problem**: Build fails with "invalid semantic version"
+```bash
+# Check tag format
+git tag | grep v0.6.0  # Should be exactly 'v0.6.0'
+# Fix: Delete bad tag and recreate
+git tag -d v0.6.0.1  # Delete malformed tag
+git tag v0.6.0       # Create correct tag
+```
+
+**Problem**: `latest` tag not applied to stable release
+```bash
+# Check if version contains pre-release identifiers
+echo "1.0.0-beta.1" | grep -E "(alpha|beta|rc|pre)"
+# Pre-release versions don't get 'latest' tag (by design)
+```
+
+### Monitoring and Metrics
+
+#### **Release Health Checks**
+```python
+# Monitor release deployment
+async def check_release_health(version: str):
+    """Verify release deployment health."""
+    # Check image availability
+    image_url = f"ghcr.io/your-org/renovate-agent:{version}"
+
+    # Verify container starts successfully
+    # Check health endpoints
+    # Validate functionality
+
+    return {"version": version, "healthy": True}
+```
+
+#### **Version Tracking**
+```python
+# Track version progression in monitoring
+release_versions = [
+    "0.5.1",  # Previous stable
+    "0.6.0",  # Current stable
+    "0.6.1"   # Current development
+]
+```
+
+This release process ensures reliable, traceable deployments while maintaining clear separation between development and production images. The version management strategy prevents conflicts and provides clear upgrade paths for users.
+
 ## Contributing Guidelines
 
 ### Code Quality Standards
