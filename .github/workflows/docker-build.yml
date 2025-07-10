@@ -1,0 +1,117 @@
+# GitHub workflow for building and pushing multi-architecture Docker images
+# Builds for linux/amd64 and linux/arm64 platforms
+# Tags images with version from pyproject.toml and pushes to GitHub Container Registry
+#
+# Currently triggered manually via workflow_dispatch
+# To enable automatic builds on merge to main, uncomment the push trigger below:
+# on:
+#   push:
+#     branches: [ main ]
+#   workflow_dispatch:
+name: Build and Push Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_to_registry:
+        description: 'Push to GitHub Container Registry'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Extract version from pyproject.toml
+        id: get_version
+        run: |
+          VERSION=$(poetry version --short)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: inputs.push_to_registry == true
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.get_version.outputs.version }}
+            type=raw,value=latest
+            type=sha,prefix=sha-
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ inputs.push_to_registry == true }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.get_version.outputs.version }}
+
+      - name: Generate artifact attestation
+        if: inputs.push_to_registry == true
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Output image details
+        run: |
+          echo "🐳 Docker Image Built Successfully!"
+          echo "Registry: ${{ env.REGISTRY }}"
+          echo "Image: ${{ env.IMAGE_NAME }}"
+          echo "Version: ${{ steps.get_version.outputs.version }}"
+          echo "Platforms: linux/amd64, linux/arm64"
+          echo "Push to registry: ${{ inputs.push_to_registry }}"
+          echo ""
+          echo "📋 Available tags:"
+          echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  - /'
+          echo ""
+          if [[ "${{ inputs.push_to_registry }}" == "true" ]]; then
+            echo "🚀 Images pushed to:"
+            echo "  - ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get_version.outputs.version }}"
+            echo "  - ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          else
+            echo "ℹ️  Images built but not pushed (push_to_registry=false)"
+          fi
