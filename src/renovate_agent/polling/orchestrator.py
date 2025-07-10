@@ -439,9 +439,14 @@ class PollingOrchestrator:
 
     def _get_repositories_for_polling(self) -> list[str]:
         """Get list of repositories to poll."""
-        # Use polling-specific repositories if configured
-        if self.config.repositories:
-            return self.config.repositories
+        # Use repository allowlist if configured
+        allowlist = self.settings.github_repository_allowlist
+        if allowlist:
+            # Ensure it's always a list
+            if isinstance(allowlist, str):
+                repos = [repo.strip() for repo in allowlist.split(",") if repo.strip()]
+                return repos
+            return allowlist
 
         # Fall back to test repositories
         test_repos = self.settings.get_test_repositories()

@@ -23,7 +23,7 @@ services:
       # Polling configuration optimized for development
       POLLING_INTERVAL_SECONDS: 60
       POLLING_CONCURRENT_REPOS: 3
-      GITHUB_REPOSITORY_ALLOWLIST: ${POLLING_REPOSITORIES:-}
+      GITHUB_REPOSITORY_ALLOWLIST: ${POLLING_REPOSITORIES}
 
       # Development optimizations
       POLLING_ENABLE_ADAPTIVE_INTERVALS: true

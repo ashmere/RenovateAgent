@@ -23,7 +23,7 @@ git clone <repo-url>
 cd RenovateAgent
 
 # 2. Run interactive setup (creates .env.local)
-python scripts/setup_dev_environment.py
+python scripts/local_setup.py
 
 # 3. Start the complete stack
 docker-compose -f docker-compose.dev.yml up
@@ -63,13 +63,13 @@ poetry run python -m renovate_agent.main
 For testing the new standalone architecture:
 
 ```bash
-# 1. Setup environment
-python scripts/setup_dev_environment.py
+# 1. Setup environment (choose Docker mode)
+python scripts/local_setup.py
 
 # 2. Run standalone app directly
 poetry run python -m renovate_agent.standalone
 
-# 3. Or via Docker
+# 3. Or via Docker (recommended)
 docker-compose -f docker-compose.dev.yml up renovate-agent
 ```
 
