@@ -246,6 +246,30 @@ class IssueStateManager:
                 [pr for pr in renovate_prs if pr.get("status") == "blocked"]
             )
 
+            # Preserve and merge polling metadata
+            existing_polling_meta = existing_data.get("polling_metadata", {})
+
+            # Ensure polling_enabled is set correctly from settings
+            polling_metadata = {
+                "last_poll_time": existing_polling_meta.get("last_poll_time"),
+                "last_pr_update": existing_polling_meta.get("last_pr_update"),
+                "current_poll_interval": existing_polling_meta.get(
+                    "current_poll_interval", "2m"
+                ),
+                "active_prs": existing_polling_meta.get("active_prs", []),
+                "total_polls_today": existing_polling_meta.get("total_polls_today", 0),
+                "api_calls_used_today": existing_polling_meta.get(
+                    "api_calls_used_today", 0
+                ),
+                "polling_enabled": self.settings.enable_polling,
+                "last_polling_error": existing_polling_meta.get("last_polling_error"),
+            }
+
+            # Merge any additional polling metadata fields that exist
+            for key, value in existing_polling_meta.items():
+                if key not in polling_metadata:
+                    polling_metadata[key] = value
+
             return {
                 "repository": repo.full_name,
                 "created_at": existing_data.get(
@@ -257,6 +281,7 @@ class IssueStateManager:
                     -10:
                 ],  # Keep last 10
                 "statistics": statistics,
+                "polling_metadata": polling_metadata,
                 "agent_status": "active",
             }
 
@@ -452,9 +477,8 @@ class IssueStateManager:
         except ValueError:
             updated_str = last_updated
 
-        # Add polling status information
+        # Prepare polling status information (will be added at the end)
         polling_meta = data.get("polling_metadata", {})
-        polling_status = ""
 
         if polling_meta.get("polling_enabled"):
             last_poll = polling_meta.get("last_poll_time", "Never")
@@ -483,10 +507,10 @@ class IssueStateManager:
 
 - **Mode:** Webhooks Only"""
 
+        # Start building the report without polling status
         report = f"""# 🤖 Renovate PRs Assistant Dashboard
 
 ## Repository: {repo_name}
-{polling_status}
 
 ### 📊 Summary
 
@@ -543,7 +567,10 @@ The Renovate PR Assistant is actively monitoring this repository for Renovate PR
         if not open_prs:
             report += "- 🎉 All Renovate PRs are processed! Repository is up to date.\n"
 
-        report += f"\n*Last updated: {updated_str}*"
+        # Add polling status at the end for technical details
+        report += polling_status
+
+        report += f"\n\n*Last updated: {updated_str}*"
 
         return report
 
