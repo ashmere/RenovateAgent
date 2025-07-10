@@ -38,6 +38,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Generate lowercase image name
+        id: image_name
+        run: |
+          IMAGE_NAME_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "value=${IMAGE_NAME_LOWER}" >> $GITHUB_OUTPUT
+          echo "Generated lowercase image name: ${IMAGE_NAME_LOWER}"
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -83,8 +90,8 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             # Manual dispatch: version-dev + dev
             VERSION="${{ steps.get_version.outputs.version }}"
-            TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}-dev"
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev"
+            TAGS="${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}:${VERSION}-dev"
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}:dev"
             echo "build_type=development" >> $GITHUB_OUTPUT
             echo "version_tag=${VERSION}-dev" >> $GITHUB_OUTPUT
 
@@ -92,20 +99,20 @@ jobs:
             # Push to main: version-dev-sha + dev
             VERSION="${{ steps.get_version.outputs.version }}"
             SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-            TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}-dev-${SHORT_SHA}"
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev"
+            TAGS="${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}:${VERSION}-dev-${SHORT_SHA}"
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}:dev"
             echo "build_type=development" >> $GITHUB_OUTPUT
             echo "version_tag=${VERSION}-dev-${SHORT_SHA}" >> $GITHUB_OUTPUT
 
           elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             # Tag push: clean version + stable + latest (only for stable releases)
             VERSION="${{ env.CLEAN_VERSION }}"
-            TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}"
-            TAGS="${TAGS},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:stable"
+            TAGS="${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}:${VERSION}"
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}:stable"
 
             # Only add 'latest' for stable releases (not pre-release tags)
             if [[ ! "$VERSION" =~ (alpha|beta|rc|pre) ]]; then
-              TAGS="${TAGS},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+              TAGS="${TAGS},${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}:latest"
               echo "latest_tag=true" >> $GITHUB_OUTPUT
             else
               echo "latest_tag=false" >> $GITHUB_OUTPUT
@@ -156,10 +163,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: |
             type=gha,scope=buildcache
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache
+            type=registry,ref=${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}:cache
           cache-to: |
             type=gha,mode=max,scope=buildcache
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache,mode=max
+            type=registry,ref=${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}:cache,mode=max
           build-args: |
             VERSION=${{ steps.meta.outputs.version_tag }}
 
@@ -167,7 +174,7 @@ jobs:
         if: inputs.push_to_registry != false && steps.meta.outputs.build_type == 'stable'
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-name: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
@@ -179,7 +186,7 @@ jobs:
           echo "  Build Type: ${{ steps.meta.outputs.build_type }}"
           echo "  Trigger: ${{ github.event_name }}"
           echo "  Registry: ${{ env.REGISTRY }}"
-          echo "  Image: ${{ env.IMAGE_NAME }}"
+          echo "  Image: ${{ steps.image_name.outputs.value }}"
           echo "  Version: ${{ steps.meta.outputs.version_tag }}"
           echo "  Platforms: linux/amd64, linux/arm64"
           echo "  Push to registry: ${{ inputs.push_to_registry != false }}"
