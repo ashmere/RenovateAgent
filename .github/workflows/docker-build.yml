@@ -154,8 +154,12 @@ jobs:
           push: ${{ inputs.push_to_registry != false }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ steps.meta.outputs.build_type }}
-          cache-to: type=gha,mode=max,scope=${{ steps.meta.outputs.build_type }}
+          cache-from: |
+            type=gha,scope=buildcache
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache
+          cache-to: |
+            type=gha,mode=max,scope=buildcache
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:cache,mode=max
           build-args: |
             VERSION=${{ steps.meta.outputs.version_tag }}
 

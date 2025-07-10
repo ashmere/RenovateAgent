@@ -39,11 +39,13 @@ ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
     PYTHON=python3.13
 
-# Set the timezone
+# Set the timezone (cached layer)
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Install dependencies
-RUN apt-get update && \
+# Install Python and basic dependencies with apt cache mount
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
     apt-get install -y software-properties-common && \
     add-apt-repository ppa:deadsnakes/ppa && \
     apt-get update && apt-get install -y \
@@ -51,23 +53,22 @@ RUN apt-get update && \
     $PYTHON-venv \
     tzdata \
     && dpkg-reconfigure -f noninteractive tzdata \
-    && update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1
 
-# Create a virtual environment
-RUN $PYTHON -m venv $VENV_PATH
-
-# Install pip and poetry in the virtual environment
-RUN $VENV_PATH/bin/pip install --upgrade pip setuptools poetry==$POETRY_VERSION
+# Create virtual environment and install poetry with pip cache mount
+RUN --mount=type=cache,target=/root/.cache/pip \
+    $PYTHON -m venv $VENV_PATH && \
+    $VENV_PATH/bin/pip install --upgrade pip setuptools poetry==$POETRY_VERSION
 
 # Print versions to confirm
 RUN $VENV_PATH/bin/pip --version && $VENV_PATH/bin/poetry --version
 
 FROM base AS builder
 
-# Install build dependencies
-RUN apt-get update && \
+# Install build dependencies with apt cache mount
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
     apt-get install -y \
     $PYTHON-dev \
     build-essential \
@@ -75,29 +76,33 @@ RUN apt-get update && \
     g++ \
     libffi-dev \
     git \
-    curl \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    curl
 
-# Copy the application code and install dependencies
+# Set working directory
 WORKDIR $PYSETUP_PATH
 
+# Copy dependency files first for better caching
 COPY pyproject.toml poetry.lock ./
+
+# Install dependencies with multiple cache mounts for optimal performance
+RUN --mount=type=cache,target=$POETRY_CACHE_DIR \
+    --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.cache/pypoetry \
+    poetry install --only main
+
+# Copy application code after dependencies (changes more frequently)
 COPY src/ ./src/
 COPY README.md ./
 
-# Install runtime dependencies - uses $POETRY_VIRTUALENVS_IN_PROJECT internally
-RUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --only main
-
 FROM base AS runtime
 
-# Install runtime dependencies (no build tools)
-RUN apt-get update && \
+# Install minimal runtime dependencies with apt cache mount
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
     apt-get install -y \
     git \
-    curl \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    curl
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash renovate
