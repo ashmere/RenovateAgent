@@ -31,7 +31,7 @@ jobs:
     name: Run Tests
     uses: ./.github/workflows/test-suite.yml
     with:
-      python-versions: '["3.12"]'  # Only test primary version for Docker builds
+      python-versions: '["3.13"]'  # Match Docker image Python version
       run-import-tests: true
       run-config-tests: true
       run-startup-tests: true
