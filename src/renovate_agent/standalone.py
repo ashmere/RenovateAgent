@@ -13,6 +13,8 @@ import signal
 import sys
 from typing import Any
 
+from aiohttp import web
+
 from .config import Settings
 from .github_client import GitHubClient
 from .issue_manager import IssueStateManager
@@ -35,6 +37,8 @@ class StandaloneApp:
         self.issue_manager: IssueStateManager | None = None
         self.polling_orchestrator: PollingOrchestrator | None = None
         self._shutdown_event = asyncio.Event()
+        self._web_app: web.Application | None = None
+        self._web_runner: web.AppRunner | None = None
 
     async def initialize(self) -> None:
         """Initialize all application components."""
@@ -117,6 +121,9 @@ class StandaloneApp:
 
         logger.info("Starting RenovateAgent in standalone mode")
 
+        # Start web server for health checks
+        await self._start_web_server()
+
         # Adjust configuration for standalone mode
         if not self.settings.enable_polling:
             logger.info("Enabling polling for standalone mode")
@@ -130,9 +137,9 @@ class StandaloneApp:
             "Standalone configuration: "
             f"deployment_mode={self.settings.deployment_mode}, "
             f"polling_enabled={self.settings.enable_polling}, "
-            f"polling_interval_minutes={self.settings.polling_interval_minutes}, "
-            f"max_concurrent_repos={self.settings.polling_max_concurrent_repos}, "
-            f"repositories={len(self.settings.polling_repositories)} configured"
+            f"polling_interval_seconds={self.settings.polling_interval_seconds}, "
+            f"max_concurrent_repos={self.settings.polling_concurrent_repos}, "
+            f"repositories={len(self.settings.github_repository_allowlist)} configured"
         )
 
         # Start polling orchestrator
@@ -142,9 +149,23 @@ class StandaloneApp:
             raise RuntimeError("Polling orchestrator not initialized")
 
     async def stop(self) -> None:
-        """Stop the standalone application gracefully."""
-        logger.info("🛑 Stopping RenovateAgent standalone mode...")
+        """Stop the standalone application."""
+        logger.info("Stopping RenovateAgent...")
+
+        # Stop polling orchestrator
+        if self.polling_orchestrator:
+            try:
+                await self.polling_orchestrator.stop_polling()
+                logger.info("Polling orchestrator stopped")
+            except Exception as e:
+                logger.error(f"Error stopping polling orchestrator: {e}")
+
+        # Stop web server
+        await self._stop_web_server()
+
+        # Signal shutdown complete
         self._shutdown_event.set()
+        logger.info("RenovateAgent stopped")
 
     def setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown."""
@@ -211,6 +232,45 @@ class StandaloneApp:
             health_data["error"] = str(e)
 
         return health_data
+
+    async def _create_web_app(self) -> web.Application:
+        """Create the web application for health checks."""
+        app = web.Application()
+
+        async def health_handler(request: web.Request) -> web.Response:
+            """Health check endpoint."""
+            try:
+                health_data = await self.health_check()
+                status_code = 200 if health_data["status"] == "healthy" else 503
+                return web.json_response(health_data, status=status_code)
+            except Exception as e:
+                logger.error(f"Health check failed: {e}")
+                return web.json_response(
+                    {"status": "unhealthy", "error": str(e)}, status=503
+                )
+
+        app.router.add_get("/health", health_handler)
+        return app
+
+    async def _start_web_server(self) -> None:
+        """Start the web server for health checks."""
+        if not self.settings:
+            raise RuntimeError("Settings not initialized")
+
+        self._web_app = await self._create_web_app()
+        self._web_runner = web.AppRunner(self._web_app)
+        await self._web_runner.setup()
+
+        # Use port 8001 for health checks
+        site = web.TCPSite(self._web_runner, "0.0.0.0", 8001)
+        await site.start()
+        logger.info("Health check server started on http://0.0.0.0:8001")
+
+    async def _stop_web_server(self) -> None:
+        """Stop the web server."""
+        if self._web_runner:
+            await self._web_runner.cleanup()
+            logger.info("Health check server stopped")
 
 
 async def main() -> None:

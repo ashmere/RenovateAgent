@@ -244,6 +244,7 @@ class Settings(BaseSettings):
 
     # Polling Configuration
     enable_polling: bool = Field(default=False, description="Enable polling mode")
+    enable_webhooks: bool = Field(default=True, description="Enable webhook mode")
     polling_interval_seconds: int = Field(
         default=120, description="Base polling interval in seconds"
     )

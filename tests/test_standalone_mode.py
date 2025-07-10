@@ -110,27 +110,30 @@ class TestStandaloneApp:
 
     @pytest.mark.asyncio
     async def test_start_configuration_adjustment(self):
-        """Test that start() adjusts configuration appropriately."""
-        # Setup mocked initialized app
+        """Test that start() properly adjusts configuration for standalone mode."""
         mock_settings = Mock()
         mock_settings.deployment_mode = "standalone"
-        mock_settings.enable_polling = False  # Will be enabled
-        mock_settings.enable_webhooks = True  # Will be disabled
-        mock_settings.polling_interval_minutes = 2
-        mock_settings.polling_max_concurrent_repos = 3
-        mock_settings.polling_repositories = ["org/repo1", "org/repo2"]
+        mock_settings.enable_polling = False
+        mock_settings.enable_webhooks = True
+        mock_settings.polling_interval_seconds = 60
+        mock_settings.polling_concurrent_repos = 3
+        mock_settings.github_repository_allowlist = ["test-repo"]  # Provide a list
 
-        mock_orchestrator = AsyncMock()
+        mock_github_client = AsyncMock()
+        mock_state_manager = Mock()
+        mock_pr_processor = Mock()
+        mock_issue_manager = Mock()
+        mock_polling_orchestrator = AsyncMock()
 
         self.app.settings = mock_settings
-        self.app.polling_orchestrator = mock_orchestrator
+        self.app.github_client = mock_github_client
+        self.app.state_manager = mock_state_manager
+        self.app.pr_processor = mock_pr_processor
+        self.app.issue_manager = mock_issue_manager
+        self.app.polling_orchestrator = mock_polling_orchestrator
 
-        # Mock the orchestrator start to avoid infinite loop
-        async def mock_start():
-            await asyncio.sleep(0.1)  # Short delay
-            self.app._shutdown_event.set()  # Trigger shutdown
-
-        mock_orchestrator.start = mock_start
+        # Mock the web server methods
+        self.app._start_web_server = AsyncMock()
 
         # Test start
         await self.app.start()
@@ -138,6 +141,9 @@ class TestStandaloneApp:
         # Verify configuration adjustments
         assert mock_settings.enable_polling is True
         assert mock_settings.enable_webhooks is False
+
+        # Verify start was called
+        mock_polling_orchestrator.start_polling.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_health_check_all_healthy(self):

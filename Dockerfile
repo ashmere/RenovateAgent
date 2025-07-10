@@ -83,16 +83,16 @@ WORKDIR $PYSETUP_PATH
 
 # Copy dependency files first for better caching
 COPY pyproject.toml poetry.lock ./
+COPY README.md ./
+
+# Copy application code (needed for poetry install)
+COPY src/ ./src/
 
 # Install dependencies with multiple cache mounts for optimal performance
 RUN --mount=type=cache,target=$POETRY_CACHE_DIR \
     --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/pypoetry \
     poetry install --only main
-
-# Copy application code after dependencies (changes more frequently)
-COPY src/ ./src/
-COPY README.md ./
 
 FROM base AS runtime
 
