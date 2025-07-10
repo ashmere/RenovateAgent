@@ -9,7 +9,7 @@ module.exports = {
   repositories: [
      "ashmere/RenovateAgent"
   ],
-  configMigration: true,
+  configMigration: false,
   platformCommit: "enabled",
   timezone: "Europe/London",
   forkProcessing: "enabled", // Forks are enabled
