@@ -616,18 +616,19 @@ class PollingStateTracker:
         try:
             issue_body = dashboard_issue.body or ""
 
-            # Find JSON data block in issue body
-            json_start = issue_body.find("```json\n")
-            if json_start == -1:
-                return {}
+            # Find JSON data in HTML comment (matching issue manager format)
+            import re
 
-            json_start += 8  # Skip "```json\n"
-            json_end = issue_body.find("\n```", json_start)
-            if json_end == -1:
-                return {}
+            json_match = re.search(
+                r"<!-- DASHBOARD_DATA\n(.*?)\n-->", issue_body, re.DOTALL
+            )
 
-            json_content = issue_body[json_start:json_end]
-            return cast(dict[str, Any], json.loads(json_content))
+            if json_match:
+                json_content = json_match.group(1)
+                data = json.loads(json_content)
+                return cast(dict[str, Any], data if isinstance(data, dict) else {})
+
+            return {}
 
         except (json.JSONDecodeError, Exception) as e:
             logger.error(
