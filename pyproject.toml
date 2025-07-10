@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "renovate-agent"
-version = "0.5.2"
+version = "0.6.0"
 description = "AI-powered automation for Renovate dependency update PRs"
 authors = ["Mat Davies <ashmere@gmail.com>"]
 readme = "README.md"
@@ -33,7 +33,13 @@ cryptography = "^45.0.0"
 PyJWT = "^2.10.1"
 aiofiles = "^24.0.0"
 python-json-logger = "^3.0.0"
-aiohttp = "^3.12.14"
+aiohttp = "^3.11.0"
+opentelemetry-api = "^1.28.0"
+opentelemetry-sdk = "^1.28.0"
+opentelemetry-exporter-otlp = "^1.28.0"
+opentelemetry-instrumentation-fastapi = "^0.49b0"
+opentelemetry-instrumentation-httpx = "^0.49b0"
+opentelemetry-instrumentation-logging = "^0.49b0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.0"

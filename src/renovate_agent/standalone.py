@@ -21,6 +21,7 @@ from .issue_manager import IssueStateManager
 from .polling.orchestrator import PollingOrchestrator
 from .pr_processor import PRProcessor
 from .state.manager import StateManager, StateManagerFactory
+from .telemetry import get_telemetry_manager, initialize_telemetry
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,13 @@ class StandaloneApp:
         except Exception as e:
             logger.error(f"Failed to load configuration: {e}")
             raise
+
+        # Initialize telemetry
+        try:
+            initialize_telemetry()
+            logger.info("OpenTelemetry initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize telemetry: {e}")
 
         # Validate standalone mode configuration
         if not self.settings.is_standalone_mode:
@@ -162,6 +170,13 @@ class StandaloneApp:
 
         # Stop web server
         await self._stop_web_server()
+
+        # Shutdown telemetry
+        try:
+            get_telemetry_manager().shutdown()
+            logger.info("Telemetry shutdown completed")
+        except Exception as e:
+            logger.warning(f"Error shutting down telemetry: {e}")
 
         # Signal shutdown complete
         self._shutdown_event.set()
