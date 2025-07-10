@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  renovate-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: renovate-agent-dev
+    environment:
+      # Deployment mode configuration
+      DEPLOYMENT_MODE: standalone
+
+      # GitHub configuration (override in .env.local)
+      GITHUB_ORGANIZATION: ${GITHUB_ORGANIZATION}
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN}
+      GITHUB_API_URL: https://api.github.com
+
+      # Operation mode - polling only for standalone
+      ENABLE_WEBHOOKS: false
+      ENABLE_POLLING: true
+
+      # Polling configuration optimized for development
+      POLLING_INTERVAL_MINUTES: 1
+      POLLING_MAX_CONCURRENT_REPOS: 3
+      POLLING_REPOSITORIES: ${POLLING_REPOSITORIES:-}
+
+      # Development optimizations
+      POLLING_ENABLE_ADAPTIVE_INTERVALS: true
+      POLLING_ENABLE_DELTA_DETECTION: true
+      POLLING_ENABLE_CACHING: true
+      POLLING_CACHE_TTL_SECONDS: 120
+
+      # Rate limiting for development
+      GITHUB_API_RATE_LIMIT: 5000
+      POLLING_RATE_LIMIT_BUFFER: 500
+      POLLING_RATE_LIMIT_THRESHOLD: 0.7
+
+      # Dependency fixing settings
+      DEPENDENCY_FIXER_ENABLED: true
+      DEPENDENCY_FIXER_AUTO_APPROVE: false  # Manual approval for safety in dev
+
+      # Logging configuration
+      LOG_LEVEL: DEBUG
+      LOG_FORMAT: json
+
+      # Development settings
+      DEBUG: true
+      DEVELOPMENT_MODE: true
+
+      # Optional Redis connection (if redis service is enabled)
+      REDIS_URL: redis://redis:6379/0
+
+    volumes:
+      # Mount source code for development (optional)
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./logs:/app/logs
+
+      # Mount SSH keys if needed for private repositories
+      - ~/.ssh:/root/.ssh:ro
+
+      # Mount GitHub App private key if using GitHub App auth
+      - ${GITHUB_APP_PRIVATE_KEY_PATH:-./github-app-key.pem}:/app/github-app-key.pem:ro
+
+    ports:
+      # Expose health check port
+      - "8080:8080"
+
+    depends_on:
+      - redis
+
+    restart: unless-stopped
+
+    # Health check for monitoring
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Resource limits for development
+    mem_limit: 512m
+    cpus: 1.0
+
+  redis:
+    image: redis:7-alpine
+    container_name: renovate-agent-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+    # Health check for Redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+    # Resource limits
+    mem_limit: 256m
+    cpus: 0.5
+
+  # Optional: Prometheus monitoring for development
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: renovate-agent-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    mem_limit: 256m
+
+  # Optional: Grafana dashboard for development
+  grafana:
+    image: grafana/grafana:latest
+    container_name: renovate-agent-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    mem_limit: 256m
+
+volumes:
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  default:
+    name: renovate-agent-dev

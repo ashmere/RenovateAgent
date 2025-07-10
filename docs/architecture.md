@@ -2,10 +2,10 @@
 
 ## Overview
 
-RenovateAgent is an intelligent automation system that streamlines dependency management by automatically reviewing and managing [Renovate](https://github.com/renovatebot/renovate) pull requests across GitHub organizations. The system follows a **stateless architecture** with GitHub Issues as the sole state store, supporting both **webhook-driven** and **polling-based** operation modes with advanced optimizations for maximum deployment flexibility, focusing on automated PR approval, dependency fixing, and repository health monitoring to reduce manual intervention in dependency updates.
+RenovateAgent is an intelligent automation system that streamlines dependency management by automatically reviewing and managing [Renovate](https://github.com/renovatebot/renovate) pull requests across GitHub organizations. The system supports **flexible state management** with pluggable backends, enabling both **serverless** and **standalone** deployment modes with **webhook-driven** and **polling-based** operation modes with advanced optimizations for maximum deployment flexibility, focusing on automated PR approval, dependency fixing, and repository health monitoring to reduce manual intervention in dependency updates.
 
-**Last Updated**: 2025-07-09
-**Version**: Current Architecture v0.5.0 (Phase 2 Complete - Optimized Dual-Mode Operation)
+**Last Updated**: 2024-01-15
+**Version**: Current Architecture v1.0.0 (Phase 1 Complete - Serverless Foundation + Milestone 2 In Progress)
 
 ## System Architecture
 
@@ -31,7 +31,14 @@ graph TB
             METRICS[Metrics Collector]
         end
 
-        subgraph "State Management"
+        subgraph "State Management Layer (Phase 1)"
+            ASM[Abstract State Manager]
+            IMSM[InMemory State Manager]
+            SMF[State Manager Factory]
+            GHFB[GitHub API Fallback]
+        end
+
+        subgraph "Legacy State Systems"
             ISM[Issue State Manager]
             PST[Polling State Tracker]
             DASH[GitHub Issues Dashboard]
@@ -45,10 +52,17 @@ graph TB
         end
     end
 
-    subgraph "Configuration"
+    subgraph "Configuration & Deployment"
         ENV[Environment Config]
+        DM[Deployment Mode]
         DUAL[Dual-Mode Settings]
         OPT[Optimization Settings]
+    end
+
+    subgraph "Deployment Modes (Phase 1)"
+        SERVERLESS[Serverless Mode]
+        STANDALONE[Standalone Mode]
+        DOCKER[Docker Compose]
     end
 
     %% External connections
@@ -70,8 +84,14 @@ graph TB
     %% Shared processing
     PRP --> VA
     VA --> DF
-    PRP --> ISM
+    PRP --> ASM
     PRP --> METRICS
+
+    %% State management (Phase 1)
+    SMF --> IMSM
+    IMSM --> GHFB
+    GHFB --> GH
+    ASM --> SMF
 
     %% Intelligence and optimization
     POLL --> ADP
@@ -83,13 +103,39 @@ graph TB
     ISM --> DASH
     PST --> DASH
 
-    %% Configuration
-    ENV --> DUAL
+    %% Configuration and deployment
+    ENV --> DM
+    DM --> SERVERLESS
+    DM --> STANDALONE
+    STANDALONE --> DOCKER
+    DM --> DUAL
     DUAL --> WHL
     DUAL --> POLL
     OPT --> ADP
     OPT --> CACHE
 ```
+
+## Deployment Modes (Phase 1 Implementation)
+
+### Serverless Mode
+- **Target**: Google Cloud Function, AWS Lambda, Azure Functions
+- **State**: In-memory with GitHub API fallback
+- **Cost**: Ultra-low (<$1.05/month)
+- **Scaling**: Automatic, event-driven
+- **Use Cases**: Production deployments, cost-sensitive environments
+
+### Standalone Mode (Milestone 2)
+- **Target**: Docker Compose, local development
+- **State**: In-memory with optional Redis persistence
+- **Cost**: Local resources only
+- **Scaling**: Single instance
+- **Use Cases**: Development, testing, air-gapped environments
+
+### Hybrid Deployment
+- **Operation**: Serverless for production, standalone for development
+- **State Compatibility**: Identical state interface across modes
+- **Configuration**: Environment-driven mode selection
+- **Migration**: Seamless transition between deployment modes
 
 ## Operation Modes
 
@@ -177,15 +223,46 @@ graph TB
 - **Go**: go mod support
 - **Features**: Version validation, security scanning, build verification
 
-### 5. State Management
+### 5. State Management Layer (Phase 1)
+**Files**: `src/renovate_agent/state/`
+- **Abstract StateManager**: Base class defining consistent state interface
+- **InMemoryStateManager**: Production implementation with GitHub API fallback
+- **StateManagerFactory**: Deployment mode-based state manager creation
+- **GitHub API Fallback**: Automatic state rebuilding from GitHub when needed
+- **Features**: Pluggable backends, deployment mode support, memory optimization
+- **Modes**: Serverless (stateless) and Standalone (persistent) support
+
+#### State Management Components
+
+**StateManager Interface** (`state/manager.py`):
+- Abstract base class for all state implementations
+- Consistent API: `get_pr_state()`, `set_pr_state()`, `get_repository_metadata()`
+- Repository listing and health checking capabilities
+- Memory usage monitoring and statistics
+
+**InMemoryStateManager** (`state/manager.py`):
+- Thread-safe in-memory state storage
+- GitHub API fallback for missing state data
+- Automatic state enrichment and validation
+- Memory usage optimization and monitoring
+- Statistics and health reporting
+
+**StateManagerFactory** (`state/manager.py`):
+- Deployment mode-based state manager creation
+- Configuration-driven backend selection
+- Extensible for future state backends (Redis, Database)
+- Mode validation and error handling
+
+### 6. Legacy State Systems (Transition)
 **Files**: `src/renovate_agent/issue_manager.py`, `src/renovate_agent/polling/state_tracker.py`
-- **Issue State Manager**: GitHub Issues as primary state store
-- **Polling State Tracker (Phase 2)**: Advanced state tracking with delta detection
+- **Issue State Manager**: GitHub Issues as dashboard and audit trail
+- **Polling State Tracker**: Advanced state tracking with delta detection
 - **Features**: PR state caching, processed PR tracking, deduplication
 - **Storage**: JSON embedded in GitHub Issue bodies
 - **Dashboard**: Real-time status and metrics display
+- **Note**: Being phased out in favor of new state management layer
 
-### 6. Intelligence Layer (Phase 2)
+### 7. Intelligence Layer (Phase 2)
 
 **Adaptive Polling** (`polling/orchestrator.py`):
 - Repository activity scoring and classification
@@ -211,7 +288,7 @@ graph TB
 - Repository-specific analytics
 - Rate limit and error tracking
 
-### 7. Rate Limit Management
+### 8. Rate Limit Management
 **File**: `src/renovate_agent/polling/rate_limiter.py`
 - **Phase 2 Enhanced**: Predictive rate limit monitoring
 - GitHub API quota tracking and forecasting
@@ -222,6 +299,12 @@ graph TB
 ## Configuration System
 
 ### Environment Variables
+
+#### Deployment Mode Configuration (Phase 1)
+```bash
+# Deployment mode selection
+DEPLOYMENT_MODE=standalone  # Options: serverless, standalone
+```
 
 #### Core Authentication
 ```bash

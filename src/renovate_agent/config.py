@@ -5,10 +5,18 @@ This module handles environment variables, settings validation, and configuratio
 management using Pydantic Settings for type safety and validation.
 """
 
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class DeploymentMode(Enum):
+    """Deployment mode enumeration for different runtime environments."""
+
+    SERVERLESS = "serverless"
+    STANDALONE = "standalone"
 
 
 class GitHubAppConfig(BaseModel):
@@ -142,6 +150,12 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+    )
+
+    # Deployment mode configuration
+    deployment_mode: str = Field(
+        default="standalone",
+        description="Deployment mode: 'serverless' or 'standalone'",
     )
 
     # GitHub configuration
@@ -331,6 +345,20 @@ class Settings(BaseSettings):
             raise ValueError(f"Invalid dashboard creation mode: {v}")
         return v
 
+    @field_validator("deployment_mode")
+    @classmethod
+    def validate_deployment_mode(cls, v: str) -> str:
+        """Validate deployment mode."""
+        try:
+            # Validate that it's a valid enum value
+            DeploymentMode(v)
+            return v
+        except ValueError:
+            valid_modes = [mode.value for mode in DeploymentMode]
+            raise ValueError(
+                f"Invalid deployment mode: {v}. Must be one of {valid_modes}"
+            ) from None
+
     @property
     def github_app_config(self) -> GitHubAppConfig:
         """Get GitHub App configuration."""
@@ -378,6 +406,21 @@ class Settings(BaseSettings):
             issue_title=self.dashboard_issue_title,
             update_on_events=self.update_dashboard_on_events,
         )
+
+    @property
+    def deployment_mode_enum(self) -> DeploymentMode:
+        """Get deployment mode as enum."""
+        return DeploymentMode(self.deployment_mode)
+
+    @property
+    def is_serverless_mode(self) -> bool:
+        """Check if running in serverless mode."""
+        return self.deployment_mode_enum == DeploymentMode.SERVERLESS
+
+    @property
+    def is_standalone_mode(self) -> bool:
+        """Check if running in standalone mode."""
+        return self.deployment_mode_enum == DeploymentMode.STANDALONE
 
     @property
     def polling_config(self) -> PollingConfig:

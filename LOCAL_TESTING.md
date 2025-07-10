@@ -7,14 +7,45 @@ This guide shows you how to run the Renovate PR Assistant locally for testing. T
 Before starting, ensure you have:
 - **Python 3.12+** installed
 - **Poetry** for dependency management (`pip install poetry`)
+- **Docker & Docker Compose** for containerized testing
 - **direnv** for environment management (optional but recommended)
 - **GitHub account** with access to target repositories
 
-## Quick Start (3 minutes)
+## Quick Start Options
 
-### Option 1: Automated Setup (Recommended - Polling Mode with Phase 2 Optimizations)
+### Option 1: Docker Compose Standalone Mode (Recommended)
 
-The setup script handles authentication, validation, and configuration with **intelligent polling as the default** for local testing:
+The easiest way to test the complete system with all dependencies:
+
+```bash
+# 1. Clone and setup
+git clone <repo-url>
+cd RenovateAgent
+
+# 2. Run interactive setup (creates .env.local)
+python scripts/setup_dev_environment.py
+
+# 3. Start the complete stack
+docker-compose -f docker-compose.dev.yml up
+
+# 4. Monitor logs
+docker-compose -f docker-compose.dev.yml logs -f renovate-agent
+
+# 5. Check health
+curl http://localhost:8001/health
+```
+
+**What this provides**:
+- ✅ **Complete isolation**: No local Python dependencies needed
+- ✅ **Redis persistence**: Optional state persistence across restarts
+- ✅ **Monitoring stack**: Prometheus + Grafana for metrics (optional)
+- ✅ **Health checks**: Built-in container health monitoring
+- ✅ **Development optimized**: Fast polling, detailed logging
+- ✅ **Easy cleanup**: `docker-compose down` removes everything
+
+### Option 2: Native Python Setup (Development)
+
+For active development with immediate code changes:
 
 ```bash
 # 1. Install dependencies
@@ -23,61 +54,319 @@ poetry install
 # 2. Configure environment (Interactive setup)
 python scripts/local_setup.py
 
-# 2b. Or for CI/CD and automated setups (Non-interactive)
-python scripts/local_setup.py --non-interactive
-
 # 3. Start the application in polling mode
 poetry run python -m renovate_agent.main
 ```
 
-**Setup Script Features**:
-- **Interactive mode**: Guides through GitHub authentication, organization setup, and repository selection
-- **Non-interactive mode**: Automatically updates existing `.env` files safely, preserving sensitive data
-- **Smart validation**: Verifies GitHub access and repository permissions
-- **Flexible authentication**: Supports GitHub CLI tokens or manual Personal Access Tokens
+### Option 3: Standalone Application Mode
 
-### Option 2: Comprehensive Testing with test-runner.sh
-
-For full end-to-end testing including dashboard validation and PR discovery:
+For testing the new standalone architecture:
 
 ```bash
-# 1. Ensure .env is configured with real repositories
-# 2. Run comprehensive test suite
-./test-runner.sh
+# 1. Setup environment
+python scripts/setup_dev_environment.py
 
-# The test runner will:
-# - Validate GitHub authentication
-# - Discover Renovate PRs dynamically
-# - Test polling system functionality
-# - Validate dashboard updates
-# - Generate detailed test reports
+# 2. Run standalone app directly
+poetry run python -m renovate_agent.standalone
+
+# 3. Or via Docker
+docker-compose -f docker-compose.dev.yml up renovate-agent
 ```
 
-The system will automatically use **adaptive polling** with:
-- **Smart intervals**: 1-15 minutes based on repository activity
-- **Delta detection**: Only process PRs with meaningful changes
-- **Intelligent caching**: Reduces API calls by 60-80%
-- **Real-time metrics**: Performance monitoring and health scoring
+## Docker Compose Standalone Mode (Detailed)
 
-### Option 2: Manual Setup (Advanced Users)
+### Architecture Overview
 
+The Docker Compose setup provides a complete testing environment:
+
+```
+┌─────────────────────┐    ┌─────────────────────┐
+│   RenovateAgent     │    │      Redis          │
+│   (Standalone)      │◄──►│   (Optional)        │
+│                     │    │                     │
+│ - Polling System    │    │ - State Persistence │
+│ - Health Checks     │    │ - Cache Storage     │
+│ - Metrics Export    │    │                     │
+└─────────────────────┘    └─────────────────────┘
+           │
+           ▼
+┌─────────────────────┐    ┌─────────────────────┐
+│    Prometheus       │    │      Grafana        │
+│   (Optional)        │    │   (Optional)        │
+│                     │    │                     │
+│ - Metrics Collection│    │ - Dashboards        │
+│ - Alerting          │    │ - Visualization     │
+└─────────────────────┘    └─────────────────────┘
+```
+
+### Configuration Files
+
+**docker-compose.dev.yml** - Main composition:
+- `renovate-agent`: Main application container
+- `redis`: Optional persistence layer
+- `prometheus`: Optional metrics collection
+- `grafana`: Optional visualization
+
+**Environment Configuration**:
 ```bash
-# 1. Copy and configure environment
-cp env.example .env
-# Edit .env with your settings
+# .env.local (created by setup script)
+DEPLOYMENT_MODE=standalone
+GITHUB_ORGANIZATION=your-org
+GITHUB_PERSONAL_ACCESS_TOKEN=ghp_xxxxx
+ENABLE_POLLING=true
+ENABLE_WEBHOOKS=false
+POLLING_INTERVAL_SECONDS=60  # Fast for development
+LOG_LEVEL=DEBUG
+```
 
-# 2. Validate configuration
-poetry run python scripts/validate_config.py
+### Docker Compose Commands
 
-# 3. Start with custom settings
-poetry run python -m renovate_agent.main
+**Basic Operations**:
+```bash
+# Start all services
+docker-compose -f docker-compose.dev.yml up
+
+# Start in background
+docker-compose -f docker-compose.dev.yml up -d
+
+# Start specific service
+docker-compose -f docker-compose.dev.yml up renovate-agent
+
+# View logs
+docker-compose -f docker-compose.dev.yml logs -f
+
+# Stop all services
+docker-compose -f docker-compose.dev.yml down
+
+# Clean up volumes
+docker-compose -f docker-compose.dev.yml down -v
+```
+
+**Development Workflows**:
+```bash
+# Rebuild after code changes
+docker-compose -f docker-compose.dev.yml build renovate-agent
+docker-compose -f docker-compose.dev.yml up renovate-agent
+
+# Shell into container
+docker-compose -f docker-compose.dev.yml exec renovate-agent sh
+
+# View container health
+docker-compose -f docker-compose.dev.yml ps
+```
+
+**Profile-based Services**:
+```bash
+# Start with monitoring stack
+docker-compose -f docker-compose.dev.yml --profile monitoring up
+
+# Start with Redis persistence
+docker-compose -f docker-compose.dev.yml --profile persistence up
+
+# Start everything
+docker-compose -f docker-compose.dev.yml --profile monitoring --profile persistence up
+```
+
+### Health Monitoring
+
+**Container Health Checks**:
+```bash
+# Check container health
+docker-compose -f docker-compose.dev.yml ps
+
+# Expected output:
+# renovate-agent    healthy
+# redis            healthy (if enabled)
+```
+
+**Application Health Endpoint**:
+```bash
+# Basic health check
+curl http://localhost:8001/health
+
+# Expected response:
+{
+  "status": "healthy",
+  "mode": "standalone",
+  "deployment_mode": "standalone",
+  "components": {
+    "github_client": "healthy",
+    "state_manager": {"status": "healthy", "stats": {...}},
+    "polling_orchestrator": "healthy"
+  }
+}
+```
+
+**Detailed Monitoring**:
+```bash
+# Prometheus metrics (if monitoring profile enabled)
+curl http://localhost:9090/metrics
+
+# Grafana dashboard (if monitoring profile enabled)
+open http://localhost:3000
+# Login: admin/admin
+```
+
+### Troubleshooting Docker Setup
+
+**Common Issues**:
+
+1. **Port conflicts**:
+   ```bash
+   # Check port usage
+   lsof -i :8001
+
+   # Use different ports
+   docker-compose -f docker-compose.dev.yml up --scale renovate-agent=0
+   # Edit docker-compose.dev.yml ports section
+   ```
+
+2. **Environment not loaded**:
+   ```bash
+   # Verify .env.local exists
+   ls -la .env.local
+
+   # Check environment in container
+   docker-compose -f docker-compose.dev.yml exec renovate-agent env | grep GITHUB
+   ```
+
+3. **GitHub connectivity**:
+   ```bash
+   # Test from container
+   docker-compose -f docker-compose.dev.yml exec renovate-agent \
+     curl -H "Authorization: token $GITHUB_PERSONAL_ACCESS_TOKEN" \
+     https://api.github.com/user
+   ```
+
+4. **Build failures**:
+   ```bash
+   # Clean build
+   docker-compose -f docker-compose.dev.yml build --no-cache renovate-agent
+
+   # Check build logs
+   docker-compose -f docker-compose.dev.yml build renovate-agent
+   ```
+
+### Performance Optimization
+
+**Development Settings** (already configured in docker-compose.dev.yml):
+```yaml
+environment:
+  - POLLING_INTERVAL_SECONDS=60        # Fast polling
+  - POLLING_MAX_CONCURRENT_REPOS=3     # Moderate concurrency
+  - LOG_LEVEL=DEBUG                    # Detailed logging
+  - DEBUG=true                         # Debug mode
+```
+
+**Resource Limits**:
+```yaml
+deploy:
+  resources:
+    limits:
+      memory: 512M        # Reasonable for development
+      cpus: '0.5'         # Half CPU
+    reservations:
+      memory: 256M        # Minimum memory
+```
+
+**Volume Mounts** for development:
+```yaml
+volumes:
+  - ./logs:/app/logs                   # Log persistence
+  - /var/run/docker.sock:/var/run/docker.sock  # Docker access (if needed)
+```
+
+## Comprehensive Testing with Docker
+
+### End-to-End Testing
+
+**Automated Test Suite**:
+```bash
+# Run comprehensive tests with Docker
+./test-runner.sh --docker
+
+# The script will:
+# 1. Start Docker Compose stack
+# 2. Wait for services to be healthy
+# 3. Run integration tests
+# 4. Validate dashboard updates
+# 5. Clean up containers
+```
+
+**Manual Testing Workflow**:
+```bash
+# 1. Start the stack
+docker-compose -f docker-compose.dev.yml up -d
+
+# 2. Wait for healthy status
+while [[ "$(docker-compose -f docker-compose.dev.yml ps -q renovate-agent | xargs docker inspect -f '{{.State.Health.Status}}')" != "healthy" ]]; do
+  echo "Waiting for container to be healthy..."
+  sleep 5
+done
+
+# 3. Monitor initial polling cycle
+docker-compose -f docker-compose.dev.yml logs -f renovate-agent | grep -E "(Polling cycle|Processing|Dashboard)"
+
+# 4. Check metrics
+curl http://localhost:8001/health | jq '.'
+
+# 5. Verify GitHub connectivity
+docker-compose -f docker-compose.dev.yml exec renovate-agent \
+  python -c "
+import asyncio
+from renovate_agent.config import Settings
+from renovate_agent.github_client import GitHubClient
+
+async def test():
+    settings = Settings()
+    client = GitHubClient(settings)
+    info = await client.get_rate_limit_info()
+    print(f'Rate limit: {info}')
+
+asyncio.run(test())
+"
+```
+
+### Integration with CI/CD
+
+**GitHub Actions Example**:
+```yaml
+name: Docker Integration Test
+on: [push, pull_request]
+
+jobs:
+  docker-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Create test environment
+        run: |
+          cp env.example .env.local
+          echo "GITHUB_PERSONAL_ACCESS_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env.local
+          echo "GITHUB_ORGANIZATION=test-org" >> .env.local
+
+      - name: Start Docker stack
+        run: docker-compose -f docker-compose.dev.yml up -d
+
+      - name: Wait for health
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:8001/health; do sleep 2; done'
+
+      - name: Run integration tests
+        run: |
+          docker-compose -f docker-compose.dev.yml exec -T renovate-agent \
+            python -m pytest tests/test_integration.py -v
+
+      - name: Cleanup
+        run: docker-compose -f docker-compose.dev.yml down -v
 ```
 
 ## Environment Configuration
 
 ### Recommended Local Testing Configuration (Phase 2 Optimized)
 
-Create a `.env` file with these **optimized** settings for local testing:
+Create a `.env.local` file with these **optimized** settings for local testing:
 
 ```bash
 # GitHub Authentication (choose one)
@@ -87,6 +376,9 @@ GITHUB_APP_PRIVATE_KEY_PATH=
 GITHUB_WEBHOOK_SECRET=dev-secret
 GITHUB_ORGANIZATION=your-org-name
 GITHUB_API_URL=https://api.github.com
+
+# Deployment Mode (NEW)
+DEPLOYMENT_MODE=standalone
 
 # Polling Mode (Phase 2 Optimized)
 ENABLE_POLLING=true
