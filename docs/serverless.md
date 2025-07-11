@@ -14,15 +14,16 @@ This document outlines the implementation plan for RenovateAgent to support two 
 
 ---
 
-## Current State (Updated 2025-07-10)
+## Current State (Updated 2025-01-11)
 
-- **Development Status**: Milestone 2 completed, ready for Milestone 3
+- **Development Status**: Milestone 3 Phase 1 COMPLETED, ngrok integration needed
 - **Architecture**: ✅ Core refactoring complete, state management implemented
 - **Standalone Mode**: ✅ Docker Compose working and tested with real repositories
-- **Dependencies**: Minimal - uses GitHub Issues as state store, optional Redis for caching
+- **Serverless Mode**: ✅ Functions-framework implementation complete and working locally
+- **Dependencies**: ✅ functions-framework added, minimal state via GitHub Issues
 - **Migration**: Not needed - clean implementation
 - **Users**: Zero production users, safe to implement breaking changes
-- **Testing**: ✅ Real-world validation with skyral-group repositories successful
+- **Testing**: ✅ Local serverless testing working, ❌ Real webhook testing needs ngrok
 
 ### Lessons Learned from Milestones 1 & 2
 
@@ -357,11 +358,11 @@ echo "Run: docker-compose --profile with-redis up to start with Redis"
 
 ---
 
-### 🎯 Milestone 3: Serverless Cloud Function with Functions-Framework (NEXT - READY TO START)
+### ✅ Milestone 3: Serverless Cloud Function with Functions-Framework (PHASE 1 COMPLETED)
 
 **Objective**: Implement serverless webhook-driven Cloud Function mode with local testing capabilities
 
-**Status**: 🎯 **READY TO START** - All prerequisites completed, foundation is solid
+**Status**: 🎯 **PHASE 1 COMPLETED** - Functions-framework working, ngrok integration needed for real webhook testing
 
 **Prerequisites Met:**
 - ✅ State management architecture supports serverless mode
@@ -375,17 +376,21 @@ echo "Run: docker-compose --profile with-redis up to start with Redis"
 - Consumers will use our Docker image in their own deployment repos
 - Cost-optimized design targeting <$1.05/month operational cost
 
-**What's Needed:**
-- Functions-framework serverless entry point
-- Local testing infrastructure with webhook simulation
-- GitHub webhook signature validation
-- Cost-optimized InMemoryStateManager
-- Self-contained deployment example (reference only)
-- Consumer documentation and usage patterns
+**What's Completed:**
+- ✅ Functions-framework serverless entry point (`src/renovate_agent/serverless/main.py`)
+- ✅ Local testing infrastructure with webhook simulation (`scripts/dev/test-serverless.*`)
+- ✅ GitHub webhook signature validation
+- ✅ Cost-optimized InMemoryStateManager integration
+- ✅ Health check endpoints and error handling
+
+**What's Still Needed:**
+- 🎯 **ngrok integration for real webhook testing** (critical gap identified)
+- 🔜 Self-contained deployment example (reference only)
+- 🔜 Consumer documentation and usage patterns
 
 **Deliverables:**
 
-#### Phase 1: Functions-Framework Serverless Entry Point
+#### ✅ Phase 1: Functions-Framework Serverless Entry Point (COMPLETED)
 ```python
 # src/renovate_agent/serverless/main.py
 import functions_framework
@@ -490,7 +495,294 @@ def _validate_github_signature(payload: bytes, signature: str) -> bool:
     return hmac.compare_digest(signature, expected_signature)
 ```
 
-#### Phase 2: Local Testing Infrastructure
+#### 🎯 Phase 1.5: ngrok Integration for Real Webhook Testing (CURRENT PRIORITY)
+
+**Objective**: Enable end-to-end testing with real GitHub webhooks using ngrok tunneling
+
+**Why This is Critical**:
+- Current testing only supports simulated webhooks via curl
+- Real GitHub webhook delivery has different timing, headers, and edge cases
+- ngrok provides secure tunneling to expose local function to GitHub
+
+**Implementation:**
+
+```bash
+# scripts/dev/test-with-ngrok.sh
+#!/bin/bash
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}🌐 Starting ngrok tunnel for webhook testing${NC}"
+
+# Check if ngrok is installed
+if ! command -v ngrok &> /dev/null; then
+    echo -e "${RED}❌ ngrok not found. Install from: https://ngrok.com/download${NC}"
+    exit 1
+fi
+
+# Check required environment variables
+if [ -z "$GITHUB_PERSONAL_ACCESS_TOKEN" ]; then
+    echo -e "${RED}❌ Error: GITHUB_PERSONAL_ACCESS_TOKEN is required${NC}"
+    exit 1
+fi
+
+PORT=${1:-8090}
+REPO=${2:-$GITHUB_ORGANIZATION/test-repo}
+
+echo -e "${YELLOW}📦 Starting local serverless function on port $PORT...${NC}"
+
+# Start functions-framework in background
+export DEPLOYMENT_MODE=serverless
+export DEBUG=true
+
+functions-framework \
+    --target=renovate_webhook \
+    --source=src/renovate_agent/serverless/main.py \
+    --port=$PORT \
+    --debug > serverless.log 2>&1 &
+
+FUNCTION_PID=$!
+sleep 5
+
+echo -e "${YELLOW}🌐 Starting ngrok tunnel...${NC}"
+
+# Start ngrok tunnel
+ngrok http $PORT --log stdout > ngrok.log 2>&1 &
+NGROK_PID=$!
+sleep 3
+
+# Extract ngrok URL
+NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' 2>/dev/null || echo "")
+
+if [ -z "$NGROK_URL" ] || [ "$NGROK_URL" = "null" ]; then
+    echo -e "${RED}❌ Failed to get ngrok URL${NC}"
+    kill $FUNCTION_PID $NGROK_PID 2>/dev/null || true
+    exit 1
+fi
+
+echo -e "${GREEN}✅ ngrok tunnel active: $NGROK_URL${NC}"
+echo -e "${YELLOW}📋 GitHub Webhook Configuration:${NC}"
+echo "   URL: $NGROK_URL"
+echo "   Content Type: application/json"
+echo "   Events: Pull requests"
+echo ""
+echo -e "${YELLOW}🧪 Testing webhook endpoint...${NC}"
+
+# Test the webhook endpoint
+curl -X POST "$NGROK_URL" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "action": "opened",
+        "pull_request": {
+            "number": 999,
+            "user": {"login": "renovate[bot]"},
+            "head": {"ref": "renovate/test-package-1.0.0"},
+            "title": "Test webhook via ngrok",
+            "state": "open"
+        },
+        "repository": {"full_name": "test/repo"}
+    }' \
+    --silent \
+    | jq '.' || echo "Test completed"
+
+echo ""
+echo -e "${GREEN}🎉 Setup complete! Configure GitHub webhook to: $NGROK_URL${NC}"
+echo -e "${YELLOW}📝 To configure webhook in GitHub:${NC}"
+echo "1. Go to: https://github.com/$REPO/settings/hooks"
+echo "2. Click 'Add webhook'"
+echo "3. Set Payload URL to: $NGROK_URL"
+echo "4. Set Content type to: application/json"
+echo "5. Select 'Pull requests' events"
+echo "6. Click 'Add webhook'"
+echo ""
+echo -e "${BLUE}🔍 Monitoring logs:${NC}"
+echo "Function logs: tail -f serverless.log"
+echo "ngrok logs: tail -f ngrok.log"
+echo ""
+echo -e "${BLUE}🛑 Press Ctrl+C to stop${NC}"
+
+# Cleanup function
+cleanup() {
+    echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
+    kill $FUNCTION_PID $NGROK_PID 2>/dev/null || true
+    rm -f serverless.log ngrok.log
+    echo -e "${GREEN}✅ Cleanup complete${NC}"
+}
+
+trap cleanup INT
+
+# Wait for interrupt
+while true; do
+    sleep 1
+done
+```
+
+```python
+# scripts/dev/test_real_webhooks.py
+"""
+Real webhook testing using ngrok tunnel.
+This script automates the entire testing flow.
+"""
+
+import json
+import subprocess
+import time
+import requests
+import logging
+from typing import Optional, Dict, Any
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class RealWebhookTester:
+    """Test serverless function with real GitHub webhooks via ngrok."""
+
+    def __init__(self, port: int = 8090):
+        self.port = port
+        self.function_process: Optional[subprocess.Popen] = None
+        self.ngrok_process: Optional[subprocess.Popen] = None
+        self.ngrok_url: Optional[str] = None
+
+    def start_function(self) -> None:
+        """Start the local serverless function."""
+        logger.info(f"Starting serverless function on port {self.port}")
+
+        self.function_process = subprocess.Popen([
+            "functions-framework",
+            "--target=renovate_webhook",
+            "--source=src/renovate_agent/serverless/main.py",
+            f"--port={self.port}",
+            "--debug"
+        ], env={
+            "DEPLOYMENT_MODE": "serverless",
+            "DEBUG": "true",
+            **dict(os.environ)
+        })
+
+        time.sleep(3)  # Wait for function to start
+
+    def start_ngrok(self) -> str:
+        """Start ngrok tunnel and return public URL."""
+        logger.info("Starting ngrok tunnel")
+
+        self.ngrok_process = subprocess.Popen([
+            "ngrok", "http", str(self.port), "--log", "stdout"
+        ])
+
+        time.sleep(3)  # Wait for ngrok to start
+
+        # Get ngrok URL
+        try:
+            response = requests.get("http://localhost:4040/api/tunnels")
+            tunnels = response.json()["tunnels"]
+            if tunnels:
+                self.ngrok_url = tunnels[0]["public_url"]
+                logger.info(f"ngrok tunnel active: {self.ngrok_url}")
+                return self.ngrok_url
+            else:
+                raise Exception("No ngrok tunnels found")
+        except Exception as e:
+            raise Exception(f"Failed to get ngrok URL: {e}")
+
+    def test_webhook(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Send test webhook to ngrok URL."""
+        if not self.ngrok_url:
+            raise Exception("ngrok tunnel not started")
+
+        logger.info("Testing webhook via ngrok")
+
+        try:
+            response = requests.post(
+                self.ngrok_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=30
+            )
+
+            return {
+                "status_code": response.status_code,
+                "response": response.json() if response.content else None,
+                "success": response.status_code == 200
+            }
+        except Exception as e:
+            return {"error": str(e), "success": False}
+
+    def cleanup(self) -> None:
+        """Stop all processes."""
+        logger.info("Cleaning up processes")
+
+        if self.function_process:
+            self.function_process.terminate()
+            self.function_process.wait()
+
+        if self.ngrok_process:
+            self.ngrok_process.terminate()
+            self.ngrok_process.wait()
+
+def main():
+    """Run real webhook testing."""
+    tester = RealWebhookTester()
+
+    try:
+        # Start services
+        tester.start_function()
+        ngrok_url = tester.start_ngrok()
+
+        print(f"\n🌐 ngrok URL: {ngrok_url}")
+        print(f"📋 Configure GitHub webhook to: {ngrok_url}")
+        print(f"🧪 Ready for real webhook testing!")
+
+        # Test with sample payload
+        test_payload = {
+            "action": "opened",
+            "pull_request": {
+                "number": 999,
+                "user": {"login": "renovate[bot]"},
+                "head": {"ref": "renovate/test-1.0.0"},
+                "title": "Test real webhook",
+                "state": "open"
+            },
+            "repository": {"full_name": "test/repo"}
+        }
+
+        result = tester.test_webhook(test_payload)
+        print(f"\n🧪 Test Result: {json.dumps(result, indent=2)}")
+
+        # Keep running for manual testing
+        input("\nPress Enter to stop...")
+
+    except KeyboardInterrupt:
+        print("\nStopping...")
+    finally:
+        tester.cleanup()
+
+if __name__ == "__main__":
+    main()
+```
+
+**Benefits of ngrok Integration:**
+- ✅ **Real webhook testing**: Test with actual GitHub webhook delivery
+- ✅ **End-to-end validation**: Verify complete webhook processing pipeline
+- ✅ **Production simulation**: Test under realistic network conditions
+- ✅ **Debug capabilities**: Monitor actual webhook payloads from GitHub
+- ✅ **Easy setup**: Automated tunnel creation and configuration guidance
+
+**Success Criteria:**
+- ✅ ngrok tunnel automatically created and configured
+- ✅ Local function accessible via public ngrok URL
+- ✅ Real GitHub webhooks processed successfully
+- ✅ Automated cleanup of processes and tunnels
+- ✅ Clear instructions for GitHub webhook configuration
+
+---
+
+#### ✅ Phase 2: Local Testing Infrastructure (COMPLETED)
 ```python
 # scripts/dev/test-serverless.py
 """Local testing of serverless functions using functions-framework"""
