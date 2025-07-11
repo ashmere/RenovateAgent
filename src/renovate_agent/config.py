@@ -201,6 +201,13 @@ class Settings(BaseSettings):
         default=600, description="Dependency update timeout"
     )
 
+    # Renovate bot configuration
+    renovate_bot_usernames: str | list[str] = Field(
+        default="renovate[bot]",
+        description="Renovate bot usernames to recognize (comma-separated). "
+        "Use this to specify organization-specific bots.",
+    )
+
     # Dashboard configuration
     dashboard_issue_title: str = Field(
         default="Renovate PRs Assistant Dashboard", description="Dashboard issue title"
@@ -315,6 +322,22 @@ class Settings(BaseSettings):
         else:
             error_msg = (
                 f"github_test_repositories must be a string or list, got {type(v)}"
+            )
+            raise ValueError(error_msg)
+
+    @field_validator("renovate_bot_usernames", mode="before")
+    @classmethod
+    def parse_renovate_bot_usernames(cls, v: Any) -> list[str]:
+        """Parse Renovate bot usernames from comma-separated string or list."""
+        if isinstance(v, str):
+            if not v.strip():
+                return ["renovate[bot]"]  # Default fallback
+            return [username.strip() for username in v.split(",") if username.strip()]
+        elif isinstance(v, list):
+            return v if v else ["renovate[bot]"]  # Default fallback for empty list
+        else:
+            error_msg = (
+                f"renovate_bot_usernames must be a string or list, got {type(v)}"
             )
             raise ValueError(error_msg)
 

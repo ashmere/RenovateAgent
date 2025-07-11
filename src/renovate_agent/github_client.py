@@ -541,12 +541,24 @@ class GitHubClient:
         Returns:
             True if PR is from Renovate
         """
-        user_login = pr.user.login.lower()
+        user_login = pr.user.login
+        user_login_lower = user_login.lower()
         pr_title = pr.title.lower()
         pr_body = (pr.body or "").lower()
         branch_name = pr.head.ref.lower()
 
-        # Check for strong Renovate indicators
+        # First check: exact match against configured Renovate bot usernames
+        configured_usernames = getattr(
+            self.config, "renovate_bot_usernames", ["renovate[bot]"]
+        )
+        if isinstance(configured_usernames, str):
+            configured_usernames = [configured_usernames]
+
+        for username in configured_usernames:
+            if user_login == username:
+                return True
+
+        # Fallback: Check for strong Renovate indicators (existing logic)
         strong_renovate_indicators = [
             # Branch patterns (most reliable for PAT-based Renovate)
             branch_name.startswith("renovate/"),
@@ -557,8 +569,8 @@ class GitHubClient:
             "this pr contains the following updates" in pr_body,
             "renovate bot" in pr_body,
             # User login patterns (traditional bot)
-            user_login.startswith("renovate"),
-            user_login.endswith("[bot]") and "renovate" in user_login,
+            user_login_lower.startswith("renovate"),
+            user_login_lower.endswith("[bot]") and "renovate" in user_login_lower,
         ]
 
         # Check for weaker indicators that need multiple matches
