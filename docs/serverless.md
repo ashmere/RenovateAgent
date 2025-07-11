@@ -357,9 +357,9 @@ echo "Run: docker-compose --profile with-redis up to start with Redis"
 
 ---
 
-### 🎯 Milestone 3: Serverless Cloud Function (NEXT - READY TO START)
+### 🎯 Milestone 3: Serverless Cloud Function with Functions-Framework (NEXT - READY TO START)
 
-**Objective**: Deploy cost-optimized Google Cloud Function for production webhook handling
+**Objective**: Implement serverless webhook-driven Cloud Function mode with local testing capabilities
 
 **Status**: 🎯 **READY TO START** - All prerequisites completed, foundation is solid
 
@@ -369,53 +369,66 @@ echo "Run: docker-compose --profile with-redis up to start with Redis"
 - ✅ Core processing logic is stateless and serverless-ready
 - ✅ Docker testing validates the processing pipeline works correctly
 
+**Architecture Decision: Functions-Framework Approach**
+- Use Python functions-framework for consistent local/cloud development
+- Self-contained deployment for initial testing (not for consumers)
+- Consumers will use our Docker image in their own deployment repos
+- Cost-optimized design targeting <$1.05/month operational cost
+
 **What's Needed:**
-- Cloud Function entry point with webhook handling
+- Functions-framework serverless entry point
+- Local testing infrastructure with webhook simulation
 - GitHub webhook signature validation
-- Minimal Cloud Storage backup for expensive operations
-- Terraform infrastructure as code
-- Cost monitoring and optimization
+- Cost-optimized InMemoryStateManager
+- Self-contained deployment example (reference only)
+- Consumer documentation and usage patterns
 
 **Deliverables:**
 
-#### Cloud Function Entry Point
+#### Phase 1: Functions-Framework Serverless Entry Point
 ```python
 # src/renovate_agent/serverless/main.py
 import functions_framework
 import json
 import logging
-from renovate_agent.config import Config
+from typing import Dict, Any, Optional
+from renovate_agent.config import get_settings
 from renovate_agent.state.manager import StateManagerFactory
-from renovate_agent.core.processor import PRProcessor
+from renovate_agent.pr_processor import PRProcessor
 from renovate_agent.github_client import GitHubClient
 
 logger = logging.getLogger(__name__)
 
-# Global state manager (reused across invocations for cost optimization)
-_state_manager = None
+# Global instances (reused across invocations for cost optimization)
+_github_client = None
 _pr_processor = None
+_state_manager = None
 
 def _get_processor():
     """Get or create processor instance (reused across invocations)"""
-    global _state_manager, _pr_processor
+    global _github_client, _pr_processor, _state_manager
 
-    if _state_manager is None:
-        config = Config()
+    if _pr_processor is None:
+        settings = get_settings()
+
+        # Ensure serverless mode
+        if settings.deployment_mode != "serverless":
+            logger.warning("Forcing serverless mode in Cloud Function")
+            settings.deployment_mode = "serverless"
+
         _state_manager = StateManagerFactory.create_state_manager("serverless")
-        github_client = GitHubClient(config)
-        _pr_processor = PRProcessor(
-            github_client=github_client,
-            state_manager=_state_manager,
-            config=config
-        )
+        _github_client = GitHubClient(settings)
+        _pr_processor = PRProcessor(_github_client, settings)
 
     return _pr_processor
 
 @functions_framework.http
 def renovate_webhook(request):
     """Cloud Function entry point for GitHub webhooks"""
+    start_time = time.time()
+
     try:
-        # Validate request
+        # Validate request method
         if request.method != 'POST':
             return {'error': 'Method not allowed'}, 405
 
@@ -429,19 +442,28 @@ def renovate_webhook(request):
         if not _validate_github_signature(request.data, signature):
             return {'error': 'Invalid signature'}, 401
 
-        # Process webhook
+        # Process webhook with existing logic
         processor = _get_processor()
-        result = processor.process_webhook_event(payload)
+        result = await processor.process_webhook_event(payload)
 
-        logger.info(f"Processed webhook: {result}")
+        execution_time = time.time() - start_time
+        logger.info("Webhook processed successfully",
+                   execution_time=execution_time,
+                   processed=result.get('processed', False))
+
         return {
             'status': 'success',
             'processed': result.get('processed', False),
-            'message': result.get('message', 'OK')
+            'message': result.get('message', 'OK'),
+            'execution_time': execution_time
         }
 
     except Exception as e:
-        logger.error(f"Error processing webhook: {str(e)}", exc_info=True)
+        execution_time = time.time() - start_time
+        logger.error("Error processing webhook",
+                    error=str(e),
+                    execution_time=execution_time,
+                    exc_info=True)
         return {'error': 'Internal server error'}, 500
 
 def _validate_github_signature(payload: bytes, signature: str) -> bool:
@@ -451,12 +473,13 @@ def _validate_github_signature(payload: bytes, signature: str) -> bool:
     import os
 
     if not signature:
+        logger.warning("No GitHub signature provided")
         return False
 
     secret = os.getenv('GITHUB_WEBHOOK_SECRET')
     if not secret:
-        logger.warning("No webhook secret configured")
-        return True  # Allow for development
+        logger.warning("No webhook secret configured - skipping validation")
+        return True  # Allow for development/testing
 
     expected_signature = 'sha256=' + hmac.new(
         secret.encode('utf-8'),
@@ -465,6 +488,367 @@ def _validate_github_signature(payload: bytes, signature: str) -> bool:
     ).hexdigest()
 
     return hmac.compare_digest(signature, expected_signature)
+```
+
+#### Phase 2: Local Testing Infrastructure
+```python
+# scripts/dev/test-serverless.py
+"""Local testing of serverless functions using functions-framework"""
+import subprocess
+import sys
+import os
+import requests
+import json
+import time
+from typing import Dict, Any
+
+class ServerlessLocalTester:
+    def __init__(self):
+        self.base_url = "http://localhost:8080"
+        self.process = None
+
+    def start_local_server(self):
+        """Start local functions-framework server"""
+        print("Starting local serverless function...")
+
+        # Set environment for serverless mode
+        env = os.environ.copy()
+        env.update({
+            'DEPLOYMENT_MODE': 'serverless',
+            'GITHUB_PERSONAL_ACCESS_TOKEN': os.getenv('GITHUB_PERSONAL_ACCESS_TOKEN'),
+            'GITHUB_ORGANIZATION': os.getenv('GITHUB_ORGANIZATION'),
+            'DEBUG': 'true'
+        })
+
+        # Start functions-framework
+        self.process = subprocess.Popen([
+            'functions-framework',
+            '--target=renovate_webhook',
+            '--source=src/renovate_agent/serverless/main.py',
+            '--port=8080',
+            '--debug'
+        ], env=env)
+
+        # Wait for server to start
+        time.sleep(3)
+        print("Local serverless function started at http://localhost:8080")
+
+    def test_webhook(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Test webhook processing locally"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/",
+                json=payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=30
+            )
+            return {
+                'status_code': response.status_code,
+                'response': response.json() if response.content else None,
+                'execution_time': response.elapsed.total_seconds()
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def stop_local_server(self):
+        """Stop local functions-framework server"""
+        if self.process:
+            self.process.terminate()
+            self.process.wait()
+            print("Local serverless function stopped")
+
+# Example usage
+if __name__ == "__main__":
+    tester = ServerlessLocalTester()
+
+    try:
+        tester.start_local_server()
+
+        # Test with sample GitHub webhook payload
+        sample_payload = {
+            "action": "opened",
+            "pull_request": {
+                "number": 123,
+                "user": {"login": "renovate[bot]"},
+                "head": {"ref": "renovate/package-1.0.0"},
+                "title": "Update package to 1.0.0"
+            },
+            "repository": {
+                "full_name": "test/repo"
+            }
+        }
+
+        result = tester.test_webhook(sample_payload)
+        print(f"Test result: {json.dumps(result, indent=2)}")
+
+    finally:
+        tester.stop_local_server()
+```
+
+```bash
+# scripts/dev/test-serverless.sh
+#!/bin/bash
+set -e
+
+echo "🚀 Starting local serverless testing..."
+
+# Check required environment variables
+if [ -z "$GITHUB_PERSONAL_ACCESS_TOKEN" ]; then
+    echo "❌ Error: GITHUB_PERSONAL_ACCESS_TOKEN is required"
+    exit 1
+fi
+
+# Install functions-framework if not present
+if ! command -v functions-framework &> /dev/null; then
+    echo "📦 Installing functions-framework..."
+    pip install functions-framework
+fi
+
+# Set serverless environment
+export DEPLOYMENT_MODE=serverless
+export DEBUG=true
+
+echo "🔧 Starting functions-framework server..."
+functions-framework \
+    --target=renovate_webhook \
+    --source=src/renovate_agent/serverless/main.py \
+    --port=8080 \
+    --debug &
+
+SERVER_PID=$!
+
+# Wait for server to start
+sleep 3
+
+echo "✅ Local serverless function ready at http://localhost:8080"
+echo "🧪 Run 'python scripts/dev/test-serverless.py' to test"
+echo "🛑 Press Ctrl+C to stop"
+
+# Wait for interrupt
+trap "echo '🛑 Stopping server...'; kill $SERVER_PID; wait $SERVER_PID; echo '✅ Server stopped'" INT
+wait $SERVER_PID
+```
+
+#### Phase 3: Self-Contained Deployment Example
+```yaml
+# examples/cloud-function/cloudbuild.yaml
+steps:
+  # Build the function
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Install dependencies
+        cd examples/cloud-function
+        pip install -r requirements.txt
+
+        # Deploy function
+        gcloud functions deploy renovate-webhook \
+          --runtime python311 \
+          --trigger-http \
+          --allow-unauthenticated \
+          --source . \
+          --entry-point renovate_webhook \
+          --memory 256MB \
+          --timeout 540s \
+          --set-env-vars DEPLOYMENT_MODE=serverless \
+          --set-secrets GITHUB_PERSONAL_ACCESS_TOKEN=github-token:latest
+
+# examples/cloud-function/requirements.txt
+functions-framework==3.*
+# Copy from main pyproject.toml dependencies
+requests>=2.31.0
+PyGithub>=1.59.0
+structlog>=23.1.0
+tenacity>=8.2.0
+```
+
+```python
+# examples/cloud-function/main.py
+"""
+Self-contained Cloud Function example for RenovateAgent
+This is for testing and reference only - consumers should use the Docker image
+"""
+import sys
+import os
+
+# Add the source directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+
+from renovate_agent.serverless.main import renovate_webhook
+
+# Export the function for Cloud Functions
+__all__ = ['renovate_webhook']
+```
+
+```hcl
+# examples/cloud-function/terraform/main.tf
+# Self-contained Terraform example for testing
+# Consumers should create their own infrastructure repos
+
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 4.0"
+    }
+  }
+}
+
+variable "project_id" {
+  description = "Google Cloud Project ID"
+  type        = string
+}
+
+variable "region" {
+  description = "Google Cloud Region"
+  type        = string
+  default     = "us-central1"
+}
+
+# Cloud Function for webhook handling
+resource "google_cloudfunctions2_function" "renovate_webhook" {
+  name        = "renovate-webhook-test"
+  location    = var.region
+  description = "RenovateAgent webhook handler - TEST DEPLOYMENT"
+
+  build_config {
+    runtime     = "python311"
+    entry_point = "renovate_webhook"
+
+    source {
+      storage_source {
+        bucket = google_storage_bucket.source.name
+        object = google_storage_bucket_object.source.name
+      }
+    }
+  }
+
+  service_config {
+    max_instance_count = 3        # Conservative for testing
+    min_instance_count = 0        # Cost optimization
+    available_memory   = "256Mi"  # Minimal memory
+    timeout_seconds    = 540      # 9 minutes max
+
+    environment_variables = {
+      DEPLOYMENT_MODE = "serverless"
+      GITHUB_ORGANIZATION = var.github_organization
+    }
+  }
+}
+
+# Storage bucket for source code
+resource "google_storage_bucket" "source" {
+  name     = "${var.project_id}-renovate-test-source"
+  location = var.region
+
+  lifecycle_rule {
+    condition {
+      age = 7  # Short retention for testing
+    }
+    action {
+      type = "Delete"
+    }
+  }
+}
+
+# IAM for invoking the function
+resource "google_cloudfunctions2_function_iam_member" "invoker" {
+  project        = var.project_id
+  location       = var.region
+  cloud_function = google_cloudfunctions2_function.renovate_webhook.name
+  role           = "roles/cloudfunctions.invoker"
+  member         = "allUsers"
+}
+
+output "webhook_url" {
+  value = google_cloudfunctions2_function.renovate_webhook.service_config[0].uri
+  description = "Webhook URL for GitHub configuration"
+}
+```
+
+#### Phase 4: Consumer Documentation
+```markdown
+# docs/deployment/consumer-guide.md
+# Using RenovateAgent in Your Infrastructure
+
+## Overview
+RenovateAgent provides a Docker image that can be deployed in various cloud environments. This guide shows how to use our image in your own infrastructure-as-code repositories.
+
+## Docker Image Usage
+
+### Environment Variables
+```bash
+# Required
+GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token
+GITHUB_ORGANIZATION=your-org
+DEPLOYMENT_MODE=serverless  # or standalone
+
+# Optional
+GITHUB_WEBHOOK_SECRET=your-webhook-secret
+GITHUB_TARGET_REPOSITORIES=org/repo1,org/repo2
+DEBUG=false
+```
+
+### Google Cloud Run Example
+```yaml
+# your-infra-repo/cloud-run.yaml
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: renovate-agent
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "10"
+        autoscaling.knative.dev/minScale: "0"
+    spec:
+      containers:
+      - image: ghcr.io/your-org/renovate-agent:latest
+        env:
+        - name: DEPLOYMENT_MODE
+          value: "serverless"
+        - name: GITHUB_ORGANIZATION
+          value: "your-org"
+        - name: GITHUB_PERSONAL_ACCESS_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: github-token
+              key: token
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 256Mi
+```
+
+### AWS Lambda Example
+```yaml
+# your-infra-repo/serverless.yml
+service: renovate-agent
+provider:
+  name: aws
+  runtime: python3.11
+
+functions:
+  webhook:
+    image: ghcr.io/your-org/renovate-agent:latest
+    events:
+      - httpApi:
+          path: /webhook
+          method: post
+    environment:
+      DEPLOYMENT_MODE: serverless
+      GITHUB_ORGANIZATION: your-org
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${env:GITHUB_PERSONAL_ACCESS_TOKEN}
+```
+
+## Migration from Standalone to Serverless
+1. Update `DEPLOYMENT_MODE=serverless`
+2. Configure webhook endpoint in GitHub
+3. Remove polling-related environment variables
+4. Scale down to zero minimum instances for cost optimization
 ```
 
 #### Cost-Optimized Processor
@@ -694,11 +1078,49 @@ echo "Webhook URL: $(terraform output -raw webhook_url)"
 ```
 
 **Success Criteria:**
-- Cloud Function deploys successfully with minimal cost configuration
-- Webhook validation works correctly
-- Function processes GitHub webhooks within 60-second timeout
-- Monthly cost remains under $1.05
-- Monitoring shows acceptable performance metrics
+- ✅ **Local Development**: Functions-framework enables local serverless testing without GCP costs
+- ✅ **Webhook Processing**: GitHub webhooks validated and processed correctly
+- ✅ **Performance**: <30 second average execution time, <540 second max timeout
+- ✅ **Cost Optimization**: Monthly cost remains under $1.05 for typical usage
+- ✅ **Self-Contained**: Example deployment works for testing (not production)
+- ✅ **Consumer Ready**: Clear documentation for using Docker image in consumer infrastructure
+- ✅ **Integration**: Seamless integration with existing InMemoryStateManager and PR processing
+
+**Timeline:**
+- **Week 1**: Functions-framework entry point + local testing infrastructure
+- **Week 2**: Cost optimization + self-contained deployment example
+- **Week 3**: Consumer documentation + integration testing
+- **Week 4**: Performance optimization + final validation
+
+**Required Inputs:**
+- ✅ **GitHub Personal Access Token**: For testing and development
+- ✅ **GitHub Organization**: Target organization for webhook processing
+- ⚠️ **GitHub Webhook Secret**: For production webhook validation (optional for testing)
+- ⚠️ **Google Cloud Project**: For self-contained deployment example (optional)
+
+**Dependencies to Add:**
+```toml
+# Add to pyproject.toml
+[tool.poetry.dependencies]
+functions-framework = "^3.0"
+
+[tool.poetry.group.dev.dependencies]
+google-cloud-functions = "^1.0"  # For Cloud Function integration
+```
+
+**New Environment Variables:**
+```bash
+# Functions-framework specific
+FUNCTIONS_FRAMEWORK_DEBUG=true
+FUNCTION_TARGET=renovate_webhook
+FUNCTION_SOURCE=src/renovate_agent/serverless/main.py
+
+# Serverless mode specific
+DEPLOYMENT_MODE=serverless
+GITHUB_WEBHOOK_SECRET=your-webhook-secret
+MAX_FUNCTION_TIMEOUT=540  # 9 minutes
+FUNCTION_MEMORY=256Mi
+```
 
 ---
 

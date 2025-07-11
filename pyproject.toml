@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "renovate-agent"
-version = "0.6.0"
+version = "0.7.0"
 description = "AI-powered automation for Renovate dependency update PRs"
 authors = ["Mat Davies <ashmere@gmail.com>"]
 readme = "README.md"
