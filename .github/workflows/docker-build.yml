@@ -45,6 +45,8 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      # Explicitly add repository permissions for package creation
+      repository-projects: read
 
     steps:
       - name: Checkout repository
@@ -164,6 +166,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract metadata for Docker
+        if: inputs.push_to_registry != false
+        id: docker_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}
+          tags: |
+            type=raw,value=dev,enable={{is_default_branch}}
+            type=raw,value=${{ steps.meta.outputs.version_tag }}
+          labels: |
+            org.opencontainers.image.title=Renovate PR Assistant
+            org.opencontainers.image.description=Intelligent automation for Renovate dependency update PRs
+            org.opencontainers.image.source={{github.server_url}}/{{github.repository}}
+            org.opencontainers.image.revision={{github.sha}}
+            org.opencontainers.image.licenses=MIT
+
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
@@ -172,15 +190,16 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: ${{ inputs.push_to_registry != false }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
           cache-from: |
             type=gha,scope=buildcache
-            type=registry,ref=${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}:cache
           cache-to: |
             type=gha,mode=max,scope=buildcache
-            type=registry,ref=${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}:cache,mode=max
           build-args: |
             VERSION=${{ steps.meta.outputs.version_tag }}
+          # Add provenance and SBOM for security
+          provenance: true
+          sbom: true
 
       - name: Generate artifact attestation
         if: inputs.push_to_registry != false && steps.meta.outputs.build_type == 'stable'
