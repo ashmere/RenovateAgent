@@ -40,6 +40,67 @@ class PRProcessor:
         self.settings = settings
         self.dependency_fixer_factory = DependencyFixerFactory(settings)
 
+    async def process_pr_webhook(
+        self, repo_name: str, pr_number: int, webhook_payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """
+        Process a PR webhook event from the serverless function.
+
+        Args:
+            repo_name: Repository name (e.g., "owner/repo")
+            pr_number: Pull request number
+            webhook_payload: Full GitHub webhook payload
+
+        Returns:
+            Processing result
+        """
+        try:
+            # Extract action from payload
+            action = webhook_payload.get("action", "unknown")
+
+            # Extract PR and repository data from payload
+            pr_data = webhook_payload.get("pull_request", {})
+            repo_data = webhook_payload.get("repository", {})
+
+            # Ensure we have the PR number and repo name
+            pr_data["number"] = pr_number
+            repo_data["full_name"] = repo_name
+
+            logger.info(
+                "Processing webhook for PR",
+                action=action,
+                pr_number=pr_number,
+                repository=repo_name,
+            )
+
+            # Route to appropriate handler based on webhook type
+            if "pull_request" in webhook_payload:
+                return await self.process_pr_event(action, pr_data, repo_data)
+            elif "check_suite" in webhook_payload:
+                check_suite = webhook_payload.get("check_suite", {})
+                return await self.process_check_suite_completion(
+                    check_suite, pr_data, repo_data
+                )
+            else:
+                return {
+                    "success": True,
+                    "message": "Unsupported webhook event type",
+                    "processed": False,
+                }
+
+        except Exception as e:
+            logger.error(
+                "Failed to process webhook",
+                pr_number=pr_number,
+                repository=repo_name,
+                error=str(e),
+            )
+            return {
+                "success": False,
+                "message": f"Failed to process webhook: {str(e)}",
+                "processed": False,
+            }
+
     async def process_pr_event(
         self, action: str, pr_data: dict[str, Any], repo_data: dict[str, Any]
     ) -> dict[str, Any]:
