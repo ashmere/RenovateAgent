@@ -38,7 +38,7 @@ export DEBUG=true
 
 # Parse command line arguments
 COMMAND=${1:-"help"}
-PORT=${2:-8080}
+PORT=${2:-8090}
 
 case $COMMAND in
     "start")
@@ -166,7 +166,7 @@ case $COMMAND in
         echo -e "${BLUE}RenovateAgent Serverless Local Testing${NC}"
         echo ""
         echo -e "${YELLOW}Commands:${NC}"
-        echo "  start [port]    - Start local server (default port: 8080)"
+        echo "  start [port]    - Start local server (default port: 8090)"
         echo "  test            - Run comprehensive test suite"
         echo "  quick-test      - Run quick webhook and health check tests"
         echo "  webhook <json>  - Test single webhook with JSON payload"
@@ -174,7 +174,7 @@ case $COMMAND in
         echo "  help            - Show this help message"
         echo ""
         echo -e "${YELLOW}Examples:${NC}"
-        echo "  $0 start                                    # Start server on port 8080"
+        echo "  $0 start                                    # Start server on port 8090"
         echo "  $0 start 9000                               # Start server on port 9000"
         echo "  $0 test                                     # Run full test suite"
         echo "  $0 quick-test                               # Quick test"
@@ -187,5 +187,6 @@ case $COMMAND in
         echo -e "${YELLOW}Optional Environment Variables:${NC}"
         echo "  GITHUB_WEBHOOK_SECRET        - GitHub webhook secret (for signature validation)"
         echo "  GITHUB_TARGET_REPOSITORIES   - Comma-separated list of repositories"
+        echo "  RENOVATE_BOT_USERNAMES       - Custom renovate bot usernames (comma-separated)"
         ;;
 esac

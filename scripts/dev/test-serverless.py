@@ -46,6 +46,7 @@ class ServerlessLocalTester:
                     "GITHUB_PERSONAL_ACCESS_TOKEN"
                 ),
                 "GITHUB_ORGANIZATION": os.getenv("GITHUB_ORGANIZATION"),
+                "RENOVATE_BOT_USERNAMES": os.getenv("RENOVATE_BOT_USERNAMES", ""),
                 "DEBUG": "true",
             }
         )
@@ -71,7 +72,8 @@ class ServerlessLocalTester:
     def test_webhook(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Test webhook processing locally."""
         try:
-            logger.info(f"Testing webhook with action: {payload.get('action')}")
+            action = payload.get("action")
+            logger.info(f"Testing webhook with action: {action}")
 
             response = requests.post(
                 f"{self.base_url}/",
@@ -171,6 +173,20 @@ class ServerlessLocalTester:
                     "repository": {"full_name": "test/repo"},
                 },
             },
+            {
+                "name": "custom_renovate_bot",
+                "payload": {
+                    "action": "opened",
+                    "pull_request": {
+                        "number": 125,
+                        "user": {"login": "renovate-skyral-group[bot]"},
+                        "head": {"ref": "renovate/dependency-update"},
+                        "title": "Update dependencies",
+                        "state": "open",
+                    },
+                    "repository": {"full_name": "test/repo"},
+                },
+            },
         ]
 
         results = []
@@ -195,7 +211,8 @@ class ServerlessLocalTester:
         for result in results:
             test_name = result["test"]
             test_result = result["result"]
-            status = "✅ PASS" if test_result.get("status_code") == 200 else "❌ FAIL"
+            status_code = test_result.get("status_code")
+            status = "✅ PASS" if status_code == 200 else "❌ FAIL"
             print(f"{test_name:20} {status}")
             if "error" in test_result:
                 print(f"  Error: {test_result['error']}")

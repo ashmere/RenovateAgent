@@ -73,6 +73,38 @@ poetry run python -m renovate_agent.standalone
 docker-compose -f docker-compose.dev.yml up renovate-agent
 ```
 
+### Option 4: Serverless Mode (Local Functions Testing)
+
+For testing the serverless functions locally using Google Cloud Functions Framework:
+
+```bash
+# 1. Install functions-framework (if not already installed)
+poetry add functions-framework
+
+# 2. Setup environment variables (using .envrc or manual export)
+export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token
+export GITHUB_ORGANIZATION=your-org
+export RENOVATE_BOT_USERNAMES="renovate[bot]"  # Optional: custom bot names
+
+# 3. Start local serverless function (default port 8090)
+./scripts/dev/test-serverless.sh start
+
+# 4. Or run comprehensive test suite
+./scripts/dev/test-serverless.sh test
+
+# 5. Or use Python test script directly
+python scripts/dev/test-serverless.py test
+```
+
+**What this provides**:
+- ✅ **Local Cloud Function**: Tests the exact serverless deployment code
+- ✅ **Functions Framework**: Uses Google's official local testing framework
+- ✅ **Port 8090 Default**: Avoids conflicts with other services on 8080
+- ✅ **Real Webhook Testing**: Processes actual GitHub webhook payloads
+- ✅ **Custom Bot Support**: Tests configurable Renovate bot usernames
+- ✅ **Health Endpoints**: Multiple health check endpoints (/health, /healthz, /)
+- ✅ **Development Optimized**: Hot reloading, detailed logging, debug mode
+
 ## Docker Compose Standalone Mode (Detailed)
 
 ### Architecture Overview
@@ -759,3 +791,250 @@ POLLING_CACHE_TTL_SECONDS=600             # Extended caching
 ```
 
 The **Phase 2 optimized polling system** provides enterprise-grade reliability and performance while maintaining the simplicity of local development testing.
+
+## Serverless Mode Testing (Detailed)
+
+### Architecture Overview
+
+The serverless mode provides a Google Cloud Functions compatible environment for local testing:
+
+```
+┌─────────────────────────┐
+│  Functions Framework    │
+│  (Local Development)    │
+│                         │
+│ - Port 8090 (default)   │
+│ - Hot Reloading         │
+│ - Debug Mode            │
+└─────────────────────────┘
+           │
+           ▼
+┌─────────────────────────┐
+│   Serverless Function   │
+│   (renovate_webhook)    │
+│                         │
+│ - Webhook Processing    │
+│ - Health Endpoints      │
+│ - Error Handling        │
+└─────────────────────────┘
+           │
+           ▼
+┌─────────────────────────┐
+│   RenovateAgent Core    │
+│   (Business Logic)      │
+│                         │
+│ - PR Processing         │
+│ - Bot Detection         │
+│ - GitHub Integration    │
+└─────────────────────────┘
+```
+
+### Environment Configuration
+
+**Required Environment Variables**:
+```bash
+# GitHub Authentication
+export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here
+export GITHUB_ORGANIZATION=your-org-name
+
+# Deployment Mode
+export DEPLOYMENT_MODE=serverless
+export DEBUG=true
+```
+
+**Optional Environment Variables**:
+```bash
+# Custom Renovate Bot Names (default: "renovate[bot]")
+export RENOVATE_BOT_USERNAMES="renovate[bot]"
+# Multiple organizations:
+export RENOVATE_BOT_USERNAMES="renovate-org1[bot],renovate-org2[bot]"
+
+# Webhook Security (disable for local testing)
+export GITHUB_WEBHOOK_SECRET=""
+
+# Target Repositories
+export GITHUB_TARGET_REPOSITORIES="org/repo1,org/repo2"
+```
+
+### Testing Scripts Usage
+
+#### test-serverless.sh - Main Testing Script
+
+**Start Local Server**:
+```bash
+# Start on default port 8090
+./scripts/dev/test-serverless.sh start
+
+# Start on custom port
+./scripts/dev/test-serverless.sh start 9000
+
+# The server will show:
+# ✅ Local serverless function ready at http://localhost:8090
+# 🧪 Test endpoints:
+#    POST http://localhost:8090/     - Webhook endpoint
+#    GET  http://localhost:8090/health - Health check
+```
+
+**Run Test Suite**:
+```bash
+# Comprehensive test suite
+./scripts/dev/test-serverless.sh test
+
+# Quick webhook and health tests
+./scripts/dev/test-serverless.sh quick-test
+
+# Test specific webhook payload
+./scripts/dev/test-serverless.sh webhook '{"action":"opened","pull_request":{"number":123}}'
+```
+
+#### test-serverless.py - Python Testing Framework
+
+**Direct Usage**:
+```bash
+# Start server and wait
+python scripts/dev/test-serverless.py start
+
+# Run comprehensive test suite
+python scripts/dev/test-serverless.py test
+
+# Test single webhook
+python scripts/dev/test-serverless.py webhook '{"action":"opened","pull_request":{"number":123}}'
+```
+
+**Automated Test Cases**:
+- ✅ Health check endpoint validation
+- ✅ Standard Renovate bot detection (`renovate[bot]`)
+- ✅ Custom Renovate bot detection (`renovate-org[bot]`)
+- ✅ Non-Renovate PR filtering
+- ✅ Check suite completion events
+- ✅ Error handling for invalid payloads
+
+### Health Check Endpoints
+
+The serverless function provides multiple health endpoints:
+
+**Primary Health Check**:
+```bash
+curl http://localhost:8090/health
+
+# Expected response:
+{
+  "status": "healthy",
+  "deployment_mode": "serverless",
+  "github_org": "your-org",
+  "bot_usernames": ["renovate[bot]"],
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+**Kubernetes-style Health Checks**:
+```bash
+# Liveness probe
+curl http://localhost:8090/healthz
+
+# Readiness probe (same endpoint)
+curl http://localhost:8090/
+
+# All return: {"status": "ok", "deployment_mode": "serverless"}
+```
+
+### Custom Bot Username Testing
+
+Test the configurable bot username feature:
+
+**Single Organization**:
+```bash
+export RENOVATE_BOT_USERNAMES="renovate-skyral[bot]"
+./scripts/dev/test-serverless.sh start
+
+# Test webhook with custom bot
+curl -X POST http://localhost:8090/ \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "action": "opened",
+    "pull_request": {
+      "number": 123,
+      "user": {"login": "renovate-skyral[bot]"},
+      "title": "Update dependency"
+    },
+    "repository": {"full_name": "test/repo"}
+  }'
+```
+
+**Multiple Organizations**:
+```bash
+export RENOVATE_BOT_USERNAMES="renovate-org1[bot],renovate-org2[bot]"
+./scripts/dev/test-serverless.sh test
+
+# The test suite will validate both bot usernames
+```
+
+### Real-World Testing
+
+Test with actual repositories and PRs:
+
+**Live Repository Testing**:
+```bash
+# Set real organization and repositories
+export GITHUB_ORGANIZATION=skyral-group
+export GITHUB_TARGET_REPOSITORIES="skyral-group/ee-sdlc,skyral-group/skyral-ee-security-sandbox"
+export RENOVATE_BOT_USERNAMES="renovate-skyral-group[bot]"
+
+# Start serverless function
+./scripts/dev/test-serverless.sh start
+
+# Test with real PR webhook (from GitHub webhook settings)
+# Or simulate using real PR data:
+curl -X POST http://localhost:8090/ \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "action": "opened",
+    "pull_request": {
+      "number": 218,
+      "user": {"login": "renovate-skyral-group[bot]"},
+      "title": "chore(deps): update dependency pip to v25 (main)",
+      "head": {"ref": "renovate/pip-25.x"},
+      "state": "open"
+    },
+    "repository": {"full_name": "skyral-group/ee-sdlc"}
+  }'
+```
+
+### Troubleshooting Serverless Mode
+
+**Common Issues**:
+
+1. **Port Already in Use**:
+   ```bash
+   # Error: Address already in use, Port 8090 is in use
+   # Solution: Use different port or kill existing process
+   lsof -ti:8090 | xargs kill -9
+   ./scripts/dev/test-serverless.sh start 8091
+   ```
+
+2. **Missing Environment Variables**:
+   ```bash
+   # Error: GITHUB_PERSONAL_ACCESS_TOKEN is required
+   # Solution: Set in .envrc or export manually
+   echo 'export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token' >> .envrc
+   direnv allow
+   ```
+
+3. **Webhook Signature Validation Error**:
+   ```bash
+   # Error: No GitHub signature provided
+   # Solution: Disable webhook secret for local testing
+   export GITHUB_WEBHOOK_SECRET=""
+   # Or unset it completely:
+   unset GITHUB_WEBHOOK_SECRET
+   ```
+
+**Debug Mode**:
+```bash
+# Enable detailed logging
+export DEBUG=true
+export LOG_LEVEL=DEBUG
+
+# Start with verbose output
+./scripts/dev/test-serverless.sh start
+```

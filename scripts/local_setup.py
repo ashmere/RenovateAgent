@@ -107,7 +107,9 @@ def read_existing_env(env_file=".env"):
     return env_vars
 
 
-def create_env_file(token, org, test_repos=None, mode="docker", env_file=".env"):
+def create_env_file(
+    token, org, test_repos=None, mode="docker", env_file=".env", bot_usernames=""
+):
     """Create environment file for specified mode."""
 
     if mode == "docker":
@@ -149,6 +151,9 @@ DEPENDENCY_UPDATE_TIMEOUT=600
 # Logging and Debug
 LOG_LEVEL=DEBUG
 DEBUG=true
+
+# Renovate Bot Configuration
+RENOVATE_BOT_USERNAMES={bot_usernames or "renovate[bot]"}
 
 # OpenTelemetry Configuration
 OTEL_SERVICE_NAME=renovate-agent
@@ -206,6 +211,9 @@ DEBUG=true
 
 # Logging
 LOG_LEVEL=INFO
+
+# Renovate Bot Configuration
+RENOVATE_BOT_USERNAMES={bot_usernames or "renovate[bot]"}
 
 # OpenTelemetry Configuration
 OTEL_SERVICE_NAME=renovate-agent
@@ -394,6 +402,20 @@ def interactive_setup():
         "\nEnter your GitHub Personal Access Token: "
     ).strip()
 
+    # Renovate Bot Configuration
+    print(f"\nRenovate bot username configuration:")
+    print("By default, the system recognizes 'renovate[bot]'")
+    print("If your organization uses custom bot names like 'renovate-{org}[bot]',")
+    print("you can specify them here.")
+    print("Format: renovate-org1[bot],renovate-org2[bot]")
+    print("or leave empty for default")
+
+    bot_usernames = input("Custom renovate bot usernames (optional): ").strip()
+    if bot_usernames:
+        config["bot_usernames"] = bot_usernames
+    else:
+        config["bot_usernames"] = ""  # Will use default
+
     # Repositories
     org = config["github_org"]
     print(f"\nWhich repositories in {org} should be monitored?")
@@ -497,6 +519,7 @@ def main():
         config["repositories"],
         config["mode"],
         env_file,
+        config.get("bot_usernames", ""),
     )
 
     print(f"✅ Created {env_file}")
