@@ -96,6 +96,44 @@ export RENOVATE_BOT_USERNAMES="renovate[bot]"  # Optional: custom bot names
 python scripts/dev/test-serverless.py test
 ```
 
+### Option 5: Real Webhook Testing with ngrok (NEW)
+
+For end-to-end testing with real GitHub webhooks using ngrok tunneling:
+
+```bash
+# Prerequisites: Install ngrok
+# macOS: brew install ngrok
+# Ubuntu: snap install ngrok
+# Or download from: https://ngrok.com/download
+
+# 1. Setup environment variables
+export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token
+export GITHUB_ORGANIZATION=your-org
+export RENOVATE_BOT_USERNAMES="renovate[bot]"  # Optional
+
+# 2. Start ngrok tunnel with local serverless function
+./scripts/dev/test-with-ngrok.sh
+
+# This will:
+# - Start local functions-framework on port 8090
+# - Create ngrok tunnel exposing the function publicly
+# - Provide GitHub webhook configuration instructions
+# - Test the webhook endpoint automatically
+
+# 3. Configure GitHub webhook (follow script instructions):
+# - Go to your test repository settings
+# - Add webhook with the provided ngrok URL
+# - Set content type to application/json
+# - Select "Pull requests" events
+
+# 4. Test with real GitHub webhooks or use the test script:
+python scripts/dev/test_real_webhooks.py --suite
+
+# 5. Monitor webhook delivery:
+# - Function logs: tail -f serverless.log
+# - ngrok web interface: http://localhost:4040
+```
+
 **What this provides**:
 - ✅ **Local Cloud Function**: Tests the exact serverless deployment code
 - ✅ **Functions Framework**: Uses Google's official local testing framework
