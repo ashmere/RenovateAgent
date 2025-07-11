@@ -193,7 +193,11 @@ class IssueStateManager:
                 "active_prs": [],
                 "total_polls_today": 0,
                 "api_calls_used_today": 0,
-                "polling_enabled": self.settings.enable_polling,
+                "polling_enabled": (
+                    self.settings.enable_polling
+                    and not self.settings.is_serverless_mode
+                ),
+                "deployment_mode": self.settings.deployment_mode,
                 "last_polling_error": None,
             },
             "agent_status": "active",
@@ -249,7 +253,11 @@ class IssueStateManager:
             # Preserve and merge polling metadata
             existing_polling_meta = existing_data.get("polling_metadata", {})
 
-            # Ensure polling_enabled is set correctly from settings
+            # Ensure polling_enabled is set correctly based on deployment mode
+            # In serverless mode, polling is never enabled
+            is_serverless = self.settings.is_serverless_mode
+            polling_enabled = self.settings.enable_polling and not is_serverless
+
             polling_metadata = {
                 "last_poll_time": existing_polling_meta.get("last_poll_time"),
                 "last_pr_update": existing_polling_meta.get("last_pr_update"),
@@ -261,7 +269,8 @@ class IssueStateManager:
                 "api_calls_used_today": existing_polling_meta.get(
                     "api_calls_used_today", 0
                 ),
-                "polling_enabled": self.settings.enable_polling,
+                "polling_enabled": polling_enabled,
+                "deployment_mode": self.settings.deployment_mode,
                 "last_polling_error": existing_polling_meta.get("last_polling_error"),
             }
 
@@ -477,10 +486,19 @@ class IssueStateManager:
         except ValueError:
             updated_str = last_updated
 
-        # Prepare polling status information (will be added at the end)
+        # Prepare status information based on deployment mode
         polling_meta = data.get("polling_metadata", {})
+        deployment_mode = polling_meta.get("deployment_mode", "unknown")
 
-        if polling_meta.get("polling_enabled"):
+        if deployment_mode == "serverless":
+            polling_status = """
+
+### 🔄 Processing Mode
+
+- **Mode:** Serverless (Event-driven)
+- **Deployment:** Cloud Function
+- **Trigger:** GitHub Webhooks"""
+        elif polling_meta.get("polling_enabled"):
             last_poll = polling_meta.get("last_poll_time", "Never")
             if last_poll and last_poll != "Never":
                 try:
