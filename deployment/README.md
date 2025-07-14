@@ -5,6 +5,7 @@ This directory contains the deployment configuration and scripts for deploying R
 ## Overview
 
 The deployment includes:
+
 - Google Cloud Functions (Gen 2) for serverless execution
 - Secret Manager for secure credential storage
 - IAM configuration for proper permissions
@@ -184,6 +185,7 @@ Or use the Cloud Console:
 ### Alerting
 
 The deployment includes alert policies for:
+
 - High error rates
 - Function timeouts
 - Memory usage spikes
@@ -215,6 +217,7 @@ curl https://your-function-url/health
 ```
 
 Expected response:
+
 ```json
 {
   "status": "healthy",
@@ -255,6 +258,7 @@ python scripts/dev/test_real_webhooks.py --start-services --suite
 ### Debug Logs
 
 Enable debug logging:
+
 ```bash
 gcloud functions deploy renovate-agent --set-env-vars LOG_LEVEL=DEBUG
 ```
@@ -262,6 +266,7 @@ gcloud functions deploy renovate-agent --set-env-vars LOG_LEVEL=DEBUG
 ### Function Inspection
 
 Inspect function configuration:
+
 ```bash
 gcloud functions describe renovate-agent --gen2 --region=us-central1
 ```
@@ -271,6 +276,7 @@ gcloud functions describe renovate-agent --gen2 --region=us-central1
 ### Recommended Settings
 
 For production:
+
 - **Memory**: 512MB (adjust based on usage)
 - **Timeout**: 540s (9 minutes)
 - **Min instances**: 0 (cold start is acceptable)
@@ -279,6 +285,7 @@ For production:
 ### Cost Monitoring
 
 Monitor costs in the Google Cloud Console:
+
 - Cloud Functions pricing
 - Secret Manager usage
 - Monitoring costs
@@ -296,6 +303,7 @@ Monitor costs in the Google Cloud Console:
 ### Network Security
 
 The function is deployed with:
+
 - HTTPS-only endpoints
 - Webhook signature validation
 - Proper CORS configuration

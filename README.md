@@ -1,7 +1,7 @@
 # Renovate PR Assistant
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.5.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.7.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/python-3.12%2B-blue.svg" alt="Python Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
@@ -27,6 +27,14 @@ An intelligent automation system that streamlines dependency management by autom
 - **Real-time Status**: Shows all open Renovate PRs with their current status
 - **Blocked PR Detection**: Identifies PRs stuck due to rate limiting, conflicts, or manual approval needs
 - **Structured Data**: Maintains machine-readable data alongside human-friendly reports
+
+### ☁️ Production-Ready Serverless Deployment
+- **Google Cloud Functions**: Complete serverless deployment with Infrastructure as Code
+- **Cost-Optimized**: ~$1.05/month operational cost for typical workloads
+- **Auto-Scaling**: Handles variable GitHub webhook loads seamlessly
+- **Integrated Monitoring**: Cloud Monitoring, Logging, and Alerting out of the box
+- **Secure**: Secret Manager integration for credential management
+- **Zero Infrastructure**: No servers to manage or maintain
 
 ## 🏗️ Architecture
 
@@ -272,6 +280,29 @@ Built-in rate limiting prevents abuse and respects GitHub API limits.
 Secure handling of GitHub App private keys with proper rotation practices.
 
 ## 🚀 Deployment
+
+### ✅ Google Cloud Functions (Serverless) - Recommended
+
+**Production-ready serverless deployment with complete infrastructure automation:**
+
+```bash
+# Quick deployment
+export GCP_PROJECT_ID=your-project-id
+./deployment/scripts/deploy-gcp.sh
+
+# With Terraform (Infrastructure as Code)
+cd deployment/terraform
+terraform init
+terraform apply -var="project_id=your-project"
+```
+
+**Features:**
+- **Cost-Optimized**: ~$1.05/month for typical workloads
+- **Zero Infrastructure**: No servers to manage
+- **Auto-Scaling**: Handles variable webhook loads
+- **Integrated Monitoring**: Cloud Monitoring and Logging
+- **Secure**: Secret Manager for credentials
+- **Complete Documentation**: See [deployment/README.md](deployment/README.md)
 
 ### Docker
 
