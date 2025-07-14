@@ -7,6 +7,8 @@ RenovateAgent functions with real GitHub webhook delivery.
 """
 
 import argparse
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -134,44 +136,62 @@ class RealWebhookTester:
     def test_webhook(
         self, payload: Dict[str, Any], headers: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
-        """Send test webhook to ngrok URL."""
-        if not self.ngrok_url:
-            raise Exception("ngrok URL not available")
+        """Test sending a webhook payload to the functions-framework endpoint."""
+        if headers is None:
+            headers = {}
 
-        logger.info("Testing webhook via ngrok")
+        # Serialize payload to bytes (same as what requests would send)
+        payload_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
 
-        # Default headers
-        webhook_headers = {"Content-Type": "application/json"}
-        if headers:
-            webhook_headers.update(headers)
+        # Auto-sign webhook if secret is available
+        webhook_secret = os.getenv("GITHUB_WEBHOOK_SECRET")
+        if webhook_secret and "X-Hub-Signature-256" not in headers:
+            signature = (
+                "sha256="
+                + hmac.new(
+                    webhook_secret.encode("utf-8"),
+                    payload_bytes,
+                    hashlib.sha256,
+                ).hexdigest()
+            )
+            headers["X-Hub-Signature-256"] = signature
+            logger.info("Auto-signing webhook request with GitHub signature")
+
+        # Set content type
+        headers["Content-Type"] = "application/json"
 
         try:
             response = requests.post(
                 self.ngrok_url,
-                json=payload,
-                headers=webhook_headers,
+                data=payload_bytes,
+                headers=headers,
                 timeout=30,
             )
 
             result = {
                 "status_code": response.status_code,
-                "success": response.status_code == 200,
-                "response": response.json() if response.content else None,
-                "execution_time": response.elapsed.total_seconds(),
+                "url": self.ngrok_url,
+                "signed": "X-Hub-Signature-256" in headers,
             }
 
-            if result["success"]:
-                logger.info(
-                    f"✅ Webhook test successful in {result['execution_time']:.2f}s"
-                )
+            if response.status_code == 200:
+                try:
+                    result["response"] = response.json()
+                except Exception:
+                    result["response"] = response.text
             else:
-                logger.warning(f"⚠️ Webhook returned HTTP {response.status_code}")
+                result["error"] = response.text
 
             return result
 
         except Exception as e:
-            logger.error(f"❌ Webhook test failed: {e}")
-            return {"error": str(e), "success": False}
+            logger.error(f"Failed to send webhook request: {e}")
+            return {
+                "status_code": 0,
+                "error": str(e),
+                "url": self.ngrok_url,
+                "signed": "X-Hub-Signature-256" in headers,
+            }
 
     def test_renovate_pr_webhook(
         self, repo: str, pr_number: int = 999
@@ -316,11 +336,9 @@ def main():
             result = tester.test_renovate_pr_webhook(test_repo, args.pr)
             print(f"📋 Result: {json.dumps(result, indent=2)}")
 
-        # Keep running for manual testing if services were started
+        # Services will be cleaned up in finally block
         if args.start_services or not args.url:
-            print("\n🔍 Services running for manual testing...")
-            print("Press Enter to stop...")
-            input()
+            print("\n✅ Testing completed successfully")
 
     except KeyboardInterrupt:
         print("\n🛑 Interrupted by user")
