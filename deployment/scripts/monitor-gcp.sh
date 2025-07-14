@@ -6,7 +6,7 @@ set -e
 # Configuration
 PROJECT_ID="${GCP_PROJECT_ID:-}"
 FUNCTION_NAME="${GCP_FUNCTION_NAME:-renovate-agent}"
-REGION="${GCP_REGION:-us-central1}"
+REGION="${GCP_REGION:-europe-west2}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -300,7 +300,7 @@ COMMANDS:
 Environment Variables:
     GCP_PROJECT_ID      GCP Project ID (required)
     GCP_FUNCTION_NAME   Function name (default: renovate-agent)
-    GCP_REGION          GCP Region (default: us-central1)
+    GCP_REGION          GCP Region (default: europe-west2)
 
 Examples:
     $0                  # Show status

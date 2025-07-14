@@ -211,7 +211,7 @@ OPTIONS:
     -h, --help              Show this help message
     -p, --project PROJECT   GCP Project ID
     -n, --name NAME         Function name (default: renovate-agent)
-    -r, --region REGION     GCP Region (default: us-central1)
+    -r, --region REGION     GCP Region (default: europe-west2)
     -m, --memory MEMORY     Memory allocation (default: 512MB)
     -t, --timeout TIMEOUT   Timeout (default: 540s)
 

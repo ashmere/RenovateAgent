@@ -1027,7 +1027,7 @@ variable "project_id" {
 variable "region" {
   description = "Google Cloud Region"
   type        = string
-  default     = "us-central1"
+  default     = "europe-west2"
 }
 
 # Cloud Function for webhook handling
@@ -1352,7 +1352,7 @@ variable "project_id" {
 variable "region" {
   description = "Google Cloud Region"
   type        = string
-  default     = "us-central1"
+  default     = "europe-west2"
 }
 
 variable "github_organization" {
@@ -1378,7 +1378,7 @@ output "function_name" {
 set -e
 
 PROJECT_ID=${1:-$GOOGLE_CLOUD_PROJECT}
-REGION=${2:-us-central1}
+REGION=${2:-europe-west2}
 
 if [ -z "$PROJECT_ID" ]; then
     echo "Error: PROJECT_ID is required"

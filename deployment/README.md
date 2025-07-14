@@ -41,7 +41,7 @@ gcloud beta billing projects link your-project-id --billing-account=YOUR_BILLING
 # Set environment variables
 export GCP_PROJECT_ID=your-project-id
 export GCP_FUNCTION_NAME=renovate-agent
-export GCP_REGION=us-central1
+export GCP_REGION=europe-west2
 
 # Run deployment script
 ./deployment/scripts/deploy-gcp.sh
@@ -77,7 +77,7 @@ The deployment supports the following environment variables:
 |----------|-------------|---------|
 | `GCP_PROJECT_ID` | Google Cloud Project ID | Required |
 | `GCP_FUNCTION_NAME` | Cloud Function name | `renovate-agent` |
-| `GCP_REGION` | GCP region | `us-central1` |
+| `GCP_REGION` | GCP region | `europe-west2` |
 | `GCP_MEMORY` | Memory allocation | `512MB` |
 | `GCP_TIMEOUT` | Function timeout | `540s` |
 | `GCP_MIN_INSTANCES` | Minimum instances | `0` |
@@ -151,7 +151,7 @@ zip -r ../deployment.zip renovate_agent/
 gcloud functions deploy renovate-agent \
   --gen2 \
   --runtime=python311 \
-  --region=us-central1 \
+  --region=europe-west2 \
   --source=. \
   --entry-point=renovate_webhook \
   --trigger=http \
@@ -176,7 +176,7 @@ Access at: `https://console.cloud.google.com/monitoring/dashboards/`
 
 View function logs:
 ```bash
-gcloud functions logs read renovate-agent --gen2 --region=us-central1
+gcloud functions logs read renovate-agent --gen2 --region=europe-west2
 ```
 
 Or use the Cloud Console:
@@ -202,8 +202,9 @@ After deployment, configure your GitHub webhook:
 4. **Events**: Select `pull_request`, `check_suite`, `issues`, `push`
 
 Example webhook URL:
-```
-https://us-central1-your-project.cloudfunctions.net/renovate-agent
+
+```text
+https://europe-west2-your-project.cloudfunctions.net/renovate-agent
 ```
 
 ## Testing
@@ -268,7 +269,7 @@ gcloud functions deploy renovate-agent --set-env-vars LOG_LEVEL=DEBUG
 Inspect function configuration:
 
 ```bash
-gcloud functions describe renovate-agent --gen2 --region=us-central1
+gcloud functions describe renovate-agent --gen2 --region=europe-west2
 ```
 
 ## Cost Optimization
@@ -314,6 +315,7 @@ The function is deployed with:
 ### Updates
 
 Update the function:
+
 ```bash
 # Redeploy with latest code
 ./deployment/scripts/deploy-gcp.sh
@@ -325,6 +327,7 @@ terraform apply
 ### Backup
 
 Important to backup:
+
 - Secret Manager secrets
 - Terraform state files
 - Environment configuration
@@ -332,6 +335,7 @@ Important to backup:
 ### Monitoring
 
 Regular monitoring checks:
+
 - Function error rates
 - Execution duration
 - Memory usage
@@ -340,6 +344,7 @@ Regular monitoring checks:
 ## Support
 
 For issues and questions:
+
 1. Check the logs in Cloud Console
 2. Review the monitoring dashboard
 3. Test with local development setup
