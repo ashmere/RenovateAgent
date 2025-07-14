@@ -1,0 +1,49 @@
+# Terraform variables configuration for RenovateAgent GCP deployment
+# Copy this file to terraform.tfvars and update with your values
+
+# Required variables
+project_id         = "your-gcp-project-id"
+github_organization = "your-github-org"
+
+# Optional variables with defaults
+region          = "europe-west2"
+function_name   = "renovate-agent"
+memory          = "512Mi"
+timeout_seconds = 540
+min_instances   = 0
+max_instances   = 10
+
+# Application configuration
+log_level               = "INFO"
+github_app_id          = "123456"
+enable_dependency_fixing = true
+supported_languages     = "python,typescript,go"
+dashboard_creation_mode = "renovate-only"
+renovate_bot_usernames  = "renovate[bot],renovate-your-org[bot]"
+
+# Monitoring and alerting
+enable_monitoring = true
+enable_tracing    = false
+notification_channels = [
+  # "projects/your-project/notificationChannels/your-channel-id"
+]
+
+# Additional environment variables
+environment_variables = {
+  # "CUSTOM_VAR" = "custom_value"
+}
+
+# Additional secret environment variables
+secret_environment_variables = {
+  # "CUSTOM_SECRET" = {
+  #   secret  = "custom-secret-name"
+  #   version = "latest"
+  # }
+}
+
+# Resource tags
+tags = {
+  environment = "production"
+  application = "renovate-agent"
+  team        = "engineering"
+}
