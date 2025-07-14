@@ -60,7 +60,7 @@ jobs:
           echo "Generated lowercase image name: ${IMAGE_NAME_LOWER}"
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
@@ -184,7 +184,7 @@ jobs:
 
       - name: Build and push Docker image
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -203,7 +203,7 @@ jobs:
 
       - name: Generate artifact attestation
         if: inputs.push_to_registry != false && steps.meta.outputs.build_type == 'stable'
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.image_name.outputs.value }}
           subject-digest: ${{ steps.build.outputs.digest }}
