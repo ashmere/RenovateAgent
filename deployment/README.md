@@ -349,3 +349,91 @@ For issues and questions:
 2. Review the monitoring dashboard
 3. Test with local development setup
 4. Consult the main project documentation
+
+## Appendix: Required Google APIs
+
+### Complete API List (Principle of Least Privilege)
+
+The following Google APIs must be enabled in your GCP project to deploy and run RenovateAgent Cloud Function. This list follows the principle of least privilege, enabling only the APIs required for core functionality.
+
+#### Core Function APIs
+
+```bash
+# Enable all required APIs at once
+gcloud services enable \
+  cloudfunctions.googleapis.com \
+  cloudbuild.googleapis.com \
+  secretmanager.googleapis.com \
+  logging.googleapis.com \
+  monitoring.googleapis.com \
+  cloudresourcemanager.googleapis.com \
+  iamcredentials.googleapis.com \
+  storage.googleapis.com
+```
+
+#### Individual API Descriptions
+
+| API | Service Name | Purpose | Required For |
+|-----|-------------|---------|--------------|
+| **Cloud Functions** | `cloudfunctions.googleapis.com` | Deploy and run serverless functions | Core function deployment |
+| **Cloud Build** | `cloudbuild.googleapis.com` | Build and deploy function code | Function deployment process |
+| **Secret Manager** | `secretmanager.googleapis.com` | Store GitHub credentials securely | GitHub webhook secret, app private key, PAT |
+| **Cloud Logging** | `logging.googleapis.com` | Function logs and log-based metrics | Monitoring, debugging, alerting |
+| **Cloud Monitoring** | `monitoring.googleapis.com` | Metrics, dashboards, alerts | Performance monitoring, error alerting |
+| **Cloud Resource Manager** | `cloudresourcemanager.googleapis.com` | IAM role management | Service account permissions |
+| **IAM Service Account Credentials** | `iamcredentials.googleapis.com` | Service account token creation | Function execution identity |
+| **Cloud Storage** | `storage.googleapis.com` | Deployment artifacts storage | Function source code storage |
+
+#### API Enablement Verification
+
+Verify all APIs are enabled:
+
+```bash
+# Check all required APIs
+gcloud services list --enabled --filter="name:(cloudfunctions.googleapis.com OR cloudbuild.googleapis.com OR secretmanager.googleapis.com OR logging.googleapis.com OR monitoring.googleapis.com OR cloudresourcemanager.googleapis.com OR iamcredentials.googleapis.com OR storage.googleapis.com)" --format="table(name)"
+```
+
+#### Security Considerations
+
+1. **No Public APIs**: This list excludes public-facing APIs that aren't required
+2. **Minimal Scope**: Only APIs needed for function execution are enabled
+3. **Standard Services**: Uses Google's standard service APIs, not beta features
+4. **Monitoring Focus**: Includes comprehensive monitoring without exposing unnecessary services
+
+#### Cost Implications
+
+These APIs have the following cost structures:
+
+- **Cloud Functions**: Pay-per-request and compute time
+- **Cloud Build**: Free tier available, then pay-per-build-minute
+- **Secret Manager**: Pay-per-secret-version and API call
+- **Cloud Logging**: Free tier available, then pay-per-GB ingested
+- **Cloud Monitoring**: Free tier available, then pay-per-metric
+- **Other APIs**: Typically free for management operations
+
+#### Troubleshooting API Issues
+
+If deployment fails with API errors:
+
+```bash
+# Check which APIs are missing
+gcloud services list --available --filter="name:cloudfunctions.googleapis.com" --format="table(name,title)"
+
+# Enable a specific API
+gcloud services enable cloudfunctions.googleapis.com --project=YOUR_PROJECT_ID
+
+# Check API quotas
+gcloud services list --enabled --format="table(name,title)" --project=YOUR_PROJECT_ID
+```
+
+#### Production Considerations
+
+For production deployments:
+
+- Monitor API quota usage
+- Set up billing alerts
+- Review API access patterns
+- Consider VPC Service Controls for additional security
+- Implement least-privilege IAM policies
+
+This API list ensures your GCP project has exactly the permissions needed to run RenovateAgent while maintaining security best practices.
