@@ -42,7 +42,7 @@ opentelemetry-instrumentation-logging = "^0.55b1"
 functions-framework = "^3.8.3"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.2.0"
+pytest = "^9.0.0"
 pytest-asyncio = "^1.0.0"
 pytest-cov = "^6.0.0"
 pytest-mock = "^3.12.0"
